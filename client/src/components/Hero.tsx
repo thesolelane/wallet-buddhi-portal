@@ -76,7 +76,7 @@ export function Hero({ onGetStarted }: HeroProps) {
               <img
                 src={mascotImage}
                 alt="Wallet Buddhi Mascot"
-                className="relative w-64 h-64 md:w-96 md:h-96 object-contain drop-shadow-2xl"
+                className="relative w-64 h-64 md:w-96 md:h-96 object-contain drop-shadow-2xl bg-transparent"
                 data-testid="img-hero-mascot"
               />
             </div>

@@ -36,7 +36,7 @@ export function Header({
               <img 
                 src={logoImage} 
                 alt="Wallet Buddhi Logo" 
-                className="h-8 w-8 md:h-10 md:w-10 object-contain"
+                className="h-8 w-8 md:h-10 md:w-10 object-contain bg-transparent"
               />
               <div className="flex flex-col">
                 <span className="font-bold text-base md:text-lg">Wallet Buddhi</span>
