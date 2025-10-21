@@ -196,6 +196,7 @@ export default function Home() {
         open={upgradeModalOpen}
         onOpenChange={setUpgradeModalOpen}
         tier={selectedTier}
+        walletAddress={address || ""}
         onUpgrade={handleUpgradeComplete}
       />
     </div>
