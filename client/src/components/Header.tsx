@@ -1,10 +1,11 @@
-import { Shield, LayoutDashboard } from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "./ui/button";
 import { WalletButton } from "./WalletButton";
 import { ThemeToggle } from "./ThemeToggle";
 import { TierBadge, type TierType } from "./TierBadge";
 import { MobileNav } from "./MobileNav";
+import logoImage from "@assets/generated_images/Wallet_Buddhi_shield_mascot_b45f87ce.png";
 
 interface HeaderProps {
   onConnectWallet: () => void;
@@ -32,7 +33,11 @@ export function Header({
               className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-lg px-2 py-1 -ml-2"
               data-testid="button-home"
             >
-              <Shield className="h-6 w-6 md:h-8 md:w-8 text-primary" />
+              <img 
+                src={logoImage} 
+                alt="Wallet Buddhi Logo" 
+                className="h-8 w-8 md:h-10 md:w-10 object-contain"
+              />
               <div className="flex flex-col">
                 <span className="font-bold text-base md:text-lg">Wallet Buddhi</span>
                 <span className="text-xs text-muted-foreground font-mono hidden sm:block">

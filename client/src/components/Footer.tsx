@@ -1,5 +1,6 @@
-import { Shield, Twitter, Github, Mail } from "lucide-react";
+import { Twitter, Github } from "lucide-react";
 import { SiDiscord, SiSolana } from "react-icons/si";
+import logoImage from "@assets/generated_images/Wallet_Buddhi_shield_mascot_b45f87ce.png";
 
 export function Footer() {
   const socialLinks = [
@@ -14,7 +15,11 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Shield className="h-6 w-6 text-primary" />
+              <img 
+                src={logoImage} 
+                alt="Wallet Buddhi Logo" 
+                className="h-8 w-8 object-contain"
+              />
               <span className="font-bold text-lg">Wallet Buddhi</span>
             </div>
             <p className="text-sm text-muted-foreground">
