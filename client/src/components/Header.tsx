@@ -57,7 +57,7 @@ export function Header({
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
-            {walletConnected && <TierBadge tier={currentTier} className="hidden sm:flex" />}
+            {walletConnected && <TierBadge tier={currentTier} />}
             <WalletButton
               onConnect={onConnectWallet}
               connected={walletConnected}
