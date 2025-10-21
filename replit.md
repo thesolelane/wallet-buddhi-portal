@@ -51,6 +51,9 @@ Preferred communication style: Simple, everyday language.
 **Key Pages:**
 - Home: Landing page with hero, features, pricing tiers
 - Dashboard: Protected route showing wallet monitoring, bot management, and analytics
+- Getting Started: User guide with step-by-step wallet connection and tier upgrade instructions
+- FAQ: Frequently asked questions organized by category with accordion interface
+- Security: Best practices guide for wallet security and threat prevention
 - Not Found: 404 error page
 
 ### Backend Architecture
