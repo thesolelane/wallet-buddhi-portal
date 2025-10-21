@@ -1,27 +1,52 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Hero } from "@/components/Hero";
 import { Header } from "@/components/Header";
 import { TierCard } from "@/components/TierCard";
 import { FeatureCard } from "@/components/FeatureCard";
 import { Footer } from "@/components/Footer";
 import { WalletConnectModal } from "@/components/WalletConnectModal";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useWallet } from "@/lib/wallet-context";
 import { Shield, Brain, Bot, Zap, Lock, TrendingUp } from "lucide-react";
 import type { TierType } from "@/components/TierBadge";
 
 export default function Home() {
+  const [, navigate] = useLocation();
   const [walletModalOpen, setWalletModalOpen] = useState(false);
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState("");
-  const [currentTier, setCurrentTier] = useState<TierType>("basic");
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<"pro" | "pro_plus">("pro");
+  const { connected, address, tier, connect, upgradeTier } = useWallet();
 
   const handleConnectWallet = () => {
     setWalletModalOpen(true);
   };
 
   const handleWalletConnect = (walletType: string) => {
-    console.log(`Connected to ${walletType}`);
-    setWalletConnected(true);
-    setWalletAddress("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU");
+    // Simulate wallet connection with a demo address
+    const demoAddress = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+    connect(walletType, demoAddress);
+  };
+
+  const handleUpgrade = (tierName: string) => {
+    if (!connected) {
+      handleConnectWallet();
+      return;
+    }
+
+    if (tierName === "Pro") {
+      setSelectedTier("pro");
+      setUpgradeModalOpen(true);
+    } else if (tierName === "Pro+") {
+      setSelectedTier("pro_plus");
+      setUpgradeModalOpen(true);
+    }
+  };
+
+  const handleUpgradeComplete = (newTier: TierType) => {
+    upgradeTier(newTier);
+    // Navigate to dashboard after upgrade
+    navigate("/dashboard");
   };
 
   const tiers = [
@@ -36,7 +61,7 @@ export default function Home() {
         "Transaction alerts",
         "24/7 monitoring",
       ],
-      current: currentTier === "basic",
+      current: tier === "basic",
     },
     {
       name: "Pro",
@@ -51,7 +76,8 @@ export default function Home() {
         "Custom alerts",
       ],
       popular: true,
-      current: currentTier === "pro",
+      current: tier === "pro",
+      locked: !connected,
     },
     {
       name: "Pro+",
@@ -65,7 +91,8 @@ export default function Home() {
         "Custom strategies",
         "Dedicated support",
       ],
-      current: currentTier === "pro_plus",
+      current: tier === "pro_plus",
+      locked: !connected,
     },
   ];
 
@@ -73,9 +100,9 @@ export default function Home() {
     <div className="min-h-screen flex flex-col">
       <Header
         onConnectWallet={handleConnectWallet}
-        walletConnected={walletConnected}
-        walletAddress={walletAddress}
-        currentTier={currentTier}
+        walletConnected={connected}
+        walletAddress={address || undefined}
+        currentTier={tier}
       />
 
       <main className="flex-1">
@@ -149,12 +176,7 @@ export default function Home() {
                 <TierCard
                   key={tier.name}
                   {...tier}
-                  onUpgrade={() => {
-                    console.log(`Upgrading to ${tier.name}`);
-                    if (!walletConnected) {
-                      handleConnectWallet();
-                    }
-                  }}
+                  onUpgrade={() => handleUpgrade(tier.name)}
                 />
               ))}
             </div>
@@ -168,6 +190,13 @@ export default function Home() {
         open={walletModalOpen}
         onOpenChange={setWalletModalOpen}
         onConnect={handleWalletConnect}
+      />
+
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+        tier={selectedTier}
+        onUpgrade={handleUpgradeComplete}
       />
     </div>
   );

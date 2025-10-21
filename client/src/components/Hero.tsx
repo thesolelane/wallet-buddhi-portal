@@ -48,22 +48,23 @@ export function Hero({ onGetStarted }: HeroProps) {
                 variant="outline"
                 className="text-base hover-elevate active-elevate-2"
                 data-testid="button-learn-more"
+                onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
               >
                 Learn More
               </Button>
             </div>
 
-            <div className="flex items-center gap-6 pt-6">
+            <div className="flex flex-wrap items-center gap-4 md:gap-6 pt-6">
               <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-chart-3" />
+                <Shield className="h-5 w-5 text-chart-3 flex-shrink-0" />
                 <span className="text-sm text-muted-foreground">AI Threat Detection</span>
               </div>
               <div className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-chart-1" />
+                <Brain className="h-5 w-5 text-chart-1 flex-shrink-0" />
                 <span className="text-sm text-muted-foreground">Deep3 Labs</span>
               </div>
               <div className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-chart-2" />
+                <Bot className="h-5 w-5 text-chart-2 flex-shrink-0" />
                 <span className="text-sm text-muted-foreground">Arbitrage Bots</span>
               </div>
             </div>
