@@ -5,10 +5,10 @@ seeds = false
 skip-lint = false
 
 [programs.devnet]
-wallet_buddhi = "WBuddhi11111111111111111111111111111111111"
+wallet_buddhi = "EcorGtD2gpLK9FRGHCJwSd1PPRhVo2yDWYkpEvPfoogQ"
 
 [programs.localnet]
-wallet_buddhi = "WBuddhi11111111111111111111111111111111111"
+wallet_buddhi = "EcorGtD2gpLK9FRGHCJwSd1PPRhVo2yDWYkpEvPfoogQ"
 
 [registry]
 url = "https://api.apr.dev"

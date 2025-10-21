@@ -19,7 +19,7 @@ interface BotData {
 
 export default function Dashboard() {
   const [, navigate] = useLocation();
-  const { connected, address, tier } = useWallet();
+  const { connected, address, tier, onChainTier } = useWallet();
   const [bots, setBots] = useState<BotData[]>([
     {
       id: "bot-1",
@@ -148,6 +148,74 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="border-primary/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-primary" />
+                  On-Chain Account Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                      Cached Tier
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold capitalize">{tier}</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs bg-muted">
+                        Local
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                      On-Chain Tier
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold capitalize">
+                        {onChainTier || "Not initialized"}
+                      </span>
+                      {onChainTier ? (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-primary/20 text-primary">
+                          Verified
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-muted">
+                          Pending
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {onChainTier && tier !== onChainTier && (
+                  <div className="p-3 rounded-md bg-warning/10 border border-warning/20">
+                    <p className="text-sm text-warning-foreground">
+                      Tier mismatch detected. On-chain tier differs from cached tier.
+                    </p>
+                  </div>
+                )}
+                
+                {!onChainTier && (
+                  <div className="p-3 rounded-md bg-muted">
+                    <p className="text-sm text-muted-foreground">
+                      Your account is not yet recorded on the Solana blockchain. 
+                      Tier upgrades will automatically initialize your on-chain account.
+                    </p>
+                  </div>
+                )}
+
+                {onChainTier && tier === onChainTier && (
+                  <div className="p-3 rounded-md bg-chart-3/10 border border-chart-3/20">
+                    <p className="text-sm text-chart-3">
+                      Account verified and synced with blockchain
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {tier === "pro_plus" ? (
               <div>

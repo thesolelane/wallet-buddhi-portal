@@ -1,6 +1,24 @@
+/**
+ * Solana Program Service for On-Chain User Account Management
+ * 
+ * IMPORTANT: This is a STUB implementation for demonstration purposes.
+ * To make this production-ready, the following changes are required:
+ * 
+ * 1. Compile and deploy the Anchor program (programs/wallet-buddhi) to devnet/mainnet
+ * 2. Generate the IDL (Interface Definition Language) file from the compiled program
+ * 3. Replace manual instruction building with Anchor's Program client
+ * 4. Implement proper Borsh deserialization for UserAccount data
+ * 5. Add transaction signing with a backend wallet/keypair for automated upgrades
+ * 
+ * Current limitations:
+ * - upgradeTierOnChain() only simulates the upgrade
+ * - getUserTier() attempts to read account data but may fail without proper decoding
+ * - No actual on-chain transactions are sent
+ */
+
 import { Connection, PublicKey, Keypair, Transaction, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 
-const PROGRAM_ID = new PublicKey("WBuddhi11111111111111111111111111111111111");
+const PROGRAM_ID = new PublicKey("EcorGtD2gpLK9FRGHCJwSd1PPRhVo2yDWYkpEvPfoogQ");
 const SOLANA_NETWORK = process.env.SOLANA_NETWORK || "devnet";
 
 export enum Tier {
@@ -71,6 +89,26 @@ export class ProgramService {
     }
   }
 
+  /**
+   * Upgrades user tier on-chain via the Solana program
+   * 
+   * STUB IMPLEMENTATION: Currently only simulates the upgrade.
+   * 
+   * Production implementation should:
+   * 1. Build a proper Anchor instruction using the program's IDL
+   * 2. Sign the transaction with a backend wallet/keypair
+   * 3. Send and confirm the transaction on-chain
+   * 4. Return the actual transaction signature
+   * 
+   * Example (when Anchor IDL is available):
+   * ```
+   * const program = new Program(IDL, PROGRAM_ID, provider);
+   * const tx = await program.methods
+   *   .upgradeTier(tierEnum, paymentSignature)
+   *   .accounts({ userAccount: pda, user: userPublicKey, owner: userPublicKey })
+   *   .rpc();
+   * ```
+   */
   async upgradeTierOnChain(
     walletAddress: string,
     newTier: string,
@@ -90,9 +128,10 @@ export class ProgramService {
       }
 
       console.log(
-        `Simulating tier upgrade on-chain for ${walletAddress} to ${newTier} (enum: ${tierEnum})`
+        `[STUB] Simulating tier upgrade on-chain for ${walletAddress} to ${newTier} (enum: ${tierEnum})`
       );
-      console.log(`Payment signature: ${paymentSignature}`);
+      console.log(`[STUB] Payment signature: ${paymentSignature}`);
+      console.log(`[STUB] Would call program.methods.upgradeTier() here when program is deployed`);
 
       return {
         success: true,

@@ -108,13 +108,60 @@ Preferred communication style: Simple, everyday language.
 **Access Control:**
 - Route-level protection: Dashboard redirects to home if wallet not connected
 - Component-level tier checks for feature availability
-- Planned on-chain payment verification for tier upgrades
+- On-chain tier verification via Solana program for authoritative state
+- Dual-layer tier tracking: cached (off-chain) and verified (on-chain)
+
+### On-Chain Smart Contract (Solana Program)
+
+**Program Architecture:**
+- Built with Anchor framework (Rust) for Solana blockchain
+- Program ID: `EcorGtD2gpLK9FRGHCJwSd1PPRhVo2yDWYkpEvPfoogQ`
+- Deployed on Solana devnet (configurable for mainnet)
+
+**Program Data Accounts:**
+- UserAccount PDA (Program Derived Address):
+  - Keyed by user wallet address
+  - Fields: owner (PublicKey), tier (enum), created_at, updated_at, last_payment_signature, bump
+  - Stores authoritative tier information on-chain
+
+**Program Instructions:**
+1. `initialize_user`: Creates a new UserAccount PDA for a wallet address (default tier: Basic)
+2. `upgrade_tier`: Updates user tier after payment verification (Pro, Pro+)
+3. `get_user_tier`: Queries current tier from on-chain account
+
+**Client Integration:**
+- TypeScript client library (`client/src/lib/program-client.ts`) for frontend interaction
+- Server-side service (`server/program-service.ts`) for backend integration
+- Automatically called after successful payment verification
+- Dashboard displays both cached and on-chain tier status
+
+**Testing:**
+- Anchor test framework configured (`tests/wallet-buddhi.ts`)
+- Tests written for initialization, tier upgrades, and validation
+- Requires compiled Solana program to run (Rust toolchain)
+
+**Deployment Notes:**
+- Program source: `programs/wallet-buddhi/src/lib.rs`
+- Anchor configuration: `Anchor.toml`
+- Build requires: Rust, Solana CLI, Anchor CLI
+- Network configurable via `SOLANA_NETWORK` environment variable
+
+**Current Implementation Status:**
+- Program structure complete but not compiled/deployed (requires Rust toolchain)
+- Client integration is STUBBED - on-chain operations are simulated
+- Backend service logs simulation messages but doesn't send actual transactions
+- Production deployment requires: compile program, deploy to devnet/mainnet, generate IDL, implement proper Anchor Program client
+
+
 
 ## External Dependencies
 
 ### Blockchain & Web3
-- **@solana/web3.js**: Solana blockchain interaction (to be integrated)
-- Wallet adapters needed: Phantom, Solflare, Backpack
+- **@solana/web3.js**: Solana blockchain interaction for wallet connections and transactions
+- **@coral-xyz/anchor**: Anchor framework for Solana program development and client interaction
+- **@solana/pay**: Solana Pay protocol for on-chain payment processing
+- **@solana/spl-token**: SPL token operations for $CATH token payments
+- Wallet adapters: Phantom, Solflare, Backpack (client-side simulation)
 
 ### Database & ORM
 - **@neondatabase/serverless**: Neon serverless PostgreSQL driver

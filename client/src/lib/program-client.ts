@@ -1,7 +1,28 @@
+/**
+ * Frontend Client for Wallet Buddhi On-Chain Program
+ * 
+ * IMPORTANT: This is a STUB/INCOMPLETE implementation.
+ * 
+ * Current limitations:
+ * - Manual instruction building without proper Anchor serialization
+ * - No 8-byte discriminators for Anchor instructions
+ * - Incorrect transaction object construction (should use web3.js Transaction class)
+ * - Hardcoded account data offsets for deserialization (brittle)
+ * 
+ * Production-ready implementation requires:
+ * 1. Import the generated IDL from the deployed Anchor program
+ * 2. Use Anchor's Program client for type-safe instruction building
+ * 3. Implement proper Borsh serialization/deserialization
+ * 4. Use web3.js Transaction class for transaction construction
+ * 
+ * Note: The backend API currently handles on-chain operations.
+ * This client is prepared for direct wallet-signed transactions in the future.
+ */
+
 import { BN } from "@coral-xyz/anchor";
 import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
 
-const PROGRAM_ID = new PublicKey("WBuddhi11111111111111111111111111111111111");
+const PROGRAM_ID = new PublicKey("EcorGtD2gpLK9FRGHCJwSd1PPRhVo2yDWYkpEvPfoogQ");
 
 export enum Tier {
   Basic = 0,

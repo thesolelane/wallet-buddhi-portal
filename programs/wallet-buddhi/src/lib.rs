@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("WBuddhi11111111111111111111111111111111111");
+declare_id!("EcorGtD2gpLK9FRGHCJwSd1PPRhVo2yDWYkpEvPfoogQ");
 
 #[program]
 pub mod wallet_buddhi {
