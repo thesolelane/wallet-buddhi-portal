@@ -5,7 +5,7 @@ import { WalletButton } from "./WalletButton";
 import { ThemeToggle } from "./ThemeToggle";
 import { TierBadge, type TierType } from "./TierBadge";
 import { MobileNav } from "./MobileNav";
-import logoImage from "@assets/generated_images/Wallet_Buddhi_shield_mascot_b45f87ce.png";
+import logoImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM_1761077109275.png";
 
 interface HeaderProps {
   onConnectWallet: () => void;

@@ -1,7 +1,7 @@
 import { ArrowRight, Shield, Brain, Bot } from "lucide-react";
 import { SiSolana } from "react-icons/si";
 import { Button } from "@/components/ui/button";
-import mascotImage from "@assets/generated_images/Wallet_Buddhi_shield_mascot_b45f87ce.png";
+import mascotImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM_1761077109275.png";
 
 interface HeroProps {
   onGetStarted: () => void;

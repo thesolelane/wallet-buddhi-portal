@@ -1,6 +1,6 @@
 import { Twitter, Github } from "lucide-react";
 import { SiDiscord, SiSolana } from "react-icons/si";
-import logoImage from "@assets/generated_images/Wallet_Buddhi_shield_mascot_b45f87ce.png";
+import logoImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM_1761077109275.png";
 
 export function Footer() {
   const socialLinks = [
