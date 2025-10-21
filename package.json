@@ -11,6 +11,7 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@neondatabase/serverless": "^0.10.4",
@@ -43,6 +44,7 @@
     "@radix-ui/react-tooltip": "^1.2.0",
     "@solana/pay": "^0.2.6",
     "@solana/spl-token": "^0.4.14",
+    "@solana/spl-token-registry": "^0.2.4574",
     "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.60.5",
     "bignumber.js": "^9.3.1",
