@@ -99,9 +99,21 @@ Preferred communication style: Simple, everyday language.
 ### Authentication and Authorization
 
 **Current Implementation:**
-- Wallet-based authentication via Solana wallet connection
+- **Real wallet-based authentication** via direct browser wallet integration
+- Native support for Phantom, Solflare, and Backpack wallets
+- Custom wallet adapter (`client/src/lib/wallet-adapter.ts`) using browser wallet APIs
 - Client-side wallet state management through WalletContext
 - Three tier levels: Basic (free), Pro, Pro+ with feature gating
+
+**Wallet Connection Features:**
+- Automatic detection of installed browser wallet extensions
+- Real-time connection status with visual indicators (pulsing green dot when connected)
+- Wallet connection modal with installation status for each wallet
+- Disconnect functionality via dropdown menu from connected wallet button
+- Account change listeners - updates UI when wallet switches accounts
+- Disconnect event handling - cleans up state when wallet disconnects externally
+- Toast notifications for connection/disconnection events
+- Connection flow: User approves via browser wallet extension → App receives public key
 
 **Future Integration Points:**
 - Session management prepared via connect-pg-simple package
@@ -113,6 +125,13 @@ Preferred communication style: Simple, everyday language.
 - Component-level tier checks for feature availability
 - On-chain tier verification via Solana program for authoritative state
 - Dual-layer tier tracking: cached (off-chain) and verified (on-chain)
+
+**Wallet Integration Technical Details:**
+- Direct browser API access: `window.solana` (Phantom), `window.solflare` (Solflare), `window.backpack` (Backpack)
+- No external wallet adapter packages used - custom lightweight implementation
+- Public key extraction and display (truncated format: xxxx...xxxx)
+- Copy address to clipboard functionality
+- Works with browser extensions only (requires user to have wallet installed)
 
 ### On-Chain Smart Contract (Solana Program)
 
@@ -164,7 +183,7 @@ Preferred communication style: Simple, everyday language.
 - **@coral-xyz/anchor**: Anchor framework for Solana program development and client interaction
 - **@solana/pay**: Solana Pay protocol for on-chain payment processing
 - **@solana/spl-token**: SPL token operations for $CATH token payments
-- Wallet adapters: Phantom, Solflare, Backpack (client-side simulation)
+- **Custom Wallet Adapter**: Direct browser integration for Phantom, Solflare, and Backpack wallets via `window` objects
 
 ### Database & ORM
 - **@neondatabase/serverless**: Neon serverless PostgreSQL driver
