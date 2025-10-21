@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { solanaPaymentService } from "./payments";
+import { programService } from "./program-service";
 import { z } from "zod";
 
 const createPaymentRequestSchema = z.object({
@@ -29,11 +30,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      return res.json(account);
+      const onChainTier = await programService.getUserTier(
+        new (await import("@solana/web3.js")).PublicKey(address)
+      );
+      
+      const tierMapping = ["basic", "pro", "pro+"];
+      const onChainTierString = tierMapping[onChainTier] || "basic";
+
+      return res.json({
+        ...account,
+        onChainTier: onChainTierString,
+      });
     } catch (error) {
       console.error("Error fetching wallet account:", error);
       return res.status(500).json({ 
         error: "Failed to fetch wallet account" 
+      });
+    }
+  });
+
+  app.get("/api/wallet/:address/tier", async (req, res) => {
+    try {
+      const { address } = req.params;
+      
+      const onChainTier = await programService.getUserTier(
+        new (await import("@solana/web3.js")).PublicKey(address)
+      );
+      
+      const tierMapping = ["basic", "pro", "pro+"];
+      const tierString = tierMapping[onChainTier] || "basic";
+      
+      return res.json({
+        tier: tierString,
+        tierEnum: onChainTier,
+      });
+    } catch (error) {
+      console.error("Error fetching on-chain tier:", error);
+      return res.status(500).json({ 
+        error: "Failed to fetch tier from blockchain" 
       });
     }
   });
@@ -113,12 +147,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           confirmedAt: new Date(),
         });
 
+        const onChainUpgrade = await programService.upgradeTierOnChain(
+          transaction.walletAddress,
+          transaction.tier,
+          verification.signature
+        );
+
+        if (onChainUpgrade.success) {
+          console.log("Tier upgraded on-chain:", onChainUpgrade.txSignature);
+        } else {
+          console.warn("Failed to upgrade tier on-chain:", onChainUpgrade.error);
+        }
+
         await storage.updateWalletTier(transaction.walletAddress, transaction.tier);
 
         return res.json({
           status: "confirmed",
           tier: transaction.tier,
           signature: verification.signature,
+          onChainSignature: onChainUpgrade.txSignature,
         });
       }
 
