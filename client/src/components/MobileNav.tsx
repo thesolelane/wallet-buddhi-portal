@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { Menu, X, Home as HomeIcon, LayoutDashboard } from "lucide-react";
+import { 
+  Menu, 
+  X, 
+  Home as HomeIcon, 
+  LayoutDashboard,
+  BookOpen,
+  HelpCircle,
+  Shield
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +18,7 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
 
 interface MobileNavProps {
   connected: boolean;
@@ -19,11 +28,17 @@ export function MobileNav({ connected }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const [location, navigate] = useLocation();
 
-  const navItems = [
+  const mainNavItems = [
     { path: "/", label: "Home", icon: HomeIcon },
     ...(connected
       ? [{ path: "/dashboard", label: "Dashboard", icon: LayoutDashboard }]
       : []),
+  ];
+
+  const helpNavItems = [
+    { path: "/getting-started", label: "Getting Started", icon: BookOpen },
+    { path: "/security", label: "Security", icon: Shield },
+    { path: "/faq", label: "FAQ", icon: HelpCircle },
   ];
 
   return (
@@ -54,22 +69,45 @@ export function MobileNav({ connected }: MobileNavProps) {
             </SheetClose>
           </div>
         </SheetHeader>
-        <div className="flex flex-col gap-2 mt-6">
-          {navItems.map((item) => (
-            <Button
-              key={item.path}
-              variant={location === item.path ? "default" : "ghost"}
-              className="justify-start hover-elevate active-elevate-2"
-              onClick={() => {
-                navigate(item.path);
-                setOpen(false);
-              }}
-              data-testid={`link-mobile-${item.label.toLowerCase()}`}
-            >
-              <item.icon className="h-4 w-4 mr-2" />
-              {item.label}
-            </Button>
-          ))}
+        <div className="flex flex-col gap-4 mt-6">
+          <div className="flex flex-col gap-2">
+            {mainNavItems.map((item) => (
+              <Button
+                key={item.path}
+                variant={location === item.path ? "default" : "ghost"}
+                className="justify-start hover-elevate active-elevate-2"
+                onClick={() => {
+                  navigate(item.path);
+                  setOpen(false);
+                }}
+                data-testid={`link-mobile-${item.label.toLowerCase()}`}
+              >
+                <item.icon className="h-4 w-4 mr-2" />
+                {item.label}
+              </Button>
+            ))}
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-muted-foreground px-2">Help</p>
+            {helpNavItems.map((item) => (
+              <Button
+                key={item.path}
+                variant={location === item.path ? "default" : "ghost"}
+                className="justify-start hover-elevate active-elevate-2"
+                onClick={() => {
+                  navigate(item.path);
+                  setOpen(false);
+                }}
+                data-testid={`link-mobile-${item.label.toLowerCase().replace(' ', '-')}`}
+              >
+                <item.icon className="h-4 w-4 mr-2" />
+                {item.label}
+              </Button>
+            ))}
+          </div>
         </div>
       </SheetContent>
     </Sheet>

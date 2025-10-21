@@ -1,10 +1,18 @@
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard, BookOpen, HelpCircle, Shield } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "./ui/button";
 import { WalletButton } from "./WalletButton";
 import { ThemeToggle } from "./ThemeToggle";
 import { TierBadge, type TierType } from "./TierBadge";
 import { MobileNav } from "./MobileNav";
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+} from "./ui/navigation-menu";
 import logoImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM_1761077109275.png";
 
 interface HeaderProps {
@@ -59,6 +67,71 @@ export function Header({
                 Dashboard
               </Button>
             )}
+            
+            <NavigationMenu>
+              <NavigationMenuList>
+                <NavigationMenuItem>
+                  <NavigationMenuTrigger className="hover-elevate active-elevate-2" data-testid="button-help-menu">
+                    Help
+                  </NavigationMenuTrigger>
+                  <NavigationMenuContent>
+                    <ul className="grid w-[400px] gap-2 p-4">
+                      <li>
+                        <NavigationMenuLink asChild>
+                          <button
+                            onClick={() => navigate("/getting-started")}
+                            className="flex items-start gap-3 rounded-md p-3 w-full hover-elevate active-elevate-2 text-left"
+                            data-testid="link-getting-started"
+                          >
+                            <BookOpen className="h-5 w-5 text-primary mt-0.5" />
+                            <div>
+                              <div className="font-semibold mb-1">Getting Started</div>
+                              <p className="text-sm text-muted-foreground">
+                                Learn how to connect your wallet and use Wallet Buddhi
+                              </p>
+                            </div>
+                          </button>
+                        </NavigationMenuLink>
+                      </li>
+                      <li>
+                        <NavigationMenuLink asChild>
+                          <button
+                            onClick={() => navigate("/security")}
+                            className="flex items-start gap-3 rounded-md p-3 w-full hover-elevate active-elevate-2 text-left"
+                            data-testid="link-security"
+                          >
+                            <Shield className="h-5 w-5 text-primary mt-0.5" />
+                            <div>
+                              <div className="font-semibold mb-1">Security Best Practices</div>
+                              <p className="text-sm text-muted-foreground">
+                                Essential tips to keep your wallet safe
+                              </p>
+                            </div>
+                          </button>
+                        </NavigationMenuLink>
+                      </li>
+                      <li>
+                        <NavigationMenuLink asChild>
+                          <button
+                            onClick={() => navigate("/faq")}
+                            className="flex items-start gap-3 rounded-md p-3 w-full hover-elevate active-elevate-2 text-left"
+                            data-testid="link-faq"
+                          >
+                            <HelpCircle className="h-5 w-5 text-primary mt-0.5" />
+                            <div>
+                              <div className="font-semibold mb-1">FAQ</div>
+                              <p className="text-sm text-muted-foreground">
+                                Answers to commonly asked questions
+                              </p>
+                            </div>
+                          </button>
+                        </NavigationMenuLink>
+                      </li>
+                    </ul>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+              </NavigationMenuList>
+            </NavigationMenu>
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
