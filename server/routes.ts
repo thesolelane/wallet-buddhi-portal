@@ -67,7 +67,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error creating payment request:", error);
-      return res.status(400).json({ 
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid request data",
+          details: error.errors
+        });
+      }
+      
+      return res.status(500).json({ 
         error: error instanceof Error ? error.message : "Failed to create payment request" 
       });
     }

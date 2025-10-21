@@ -1,12 +1,11 @@
-import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { Connection, PublicKey, Keypair, clusterApiUrl } from "@solana/web3.js";
 import { encodeURL, findReference, FindReferenceError, validateTransfer } from "@solana/pay";
 import BigNumber from "bignumber.js";
-import { randomBytes } from "crypto";
 
 const SOLANA_NETWORK = process.env.SOLANA_NETWORK || "devnet";
-const MERCHANT_WALLET = process.env.MERCHANT_WALLET || "EXAMPLEwallet1234567890ABCDEFGHabcdefgh";
+const MERCHANT_WALLET = process.env.MERCHANT_WALLET || "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
 
-const CATH_TOKEN_MINT = "CATHtokenMint123456789012345678901234567";
+const CATH_TOKEN_MINT = process.env.CATH_TOKEN_MINT || "CATHxcD4Fg5Y5zKCnbZvPkFoFHhECQQmBpTmTUKpuMP";
 
 const TIER_PRICES = {
   pro: {
@@ -31,8 +30,7 @@ export class SolanaPaymentService {
   }
 
   generateReferenceKey(): PublicKey {
-    const referenceBytes = randomBytes(32);
-    return new PublicKey(referenceBytes);
+    return Keypair.generate().publicKey;
   }
 
   async createPaymentRequest(
