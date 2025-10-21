@@ -5,7 +5,7 @@ import { BotCard } from "@/components/BotCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, TrendingUp, Shield, Wallet as WalletIcon, ArrowLeft, Bot } from "lucide-react";
-import { useWallet } from "@/lib/wallet-context";
+import { useWallet } from "@/lib/wallet-context-new";
 
 type BotStatus = "active" | "inactive";
 
@@ -72,12 +72,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header
-        onConnectWallet={() => {}}
-        walletConnected={connected}
-        walletAddress={address || undefined}
-        currentTier={tier}
-      />
+      <Header />
 
       <main className="flex-1 bg-muted/30">
         <div className="container mx-auto px-4 md:px-8 py-8">

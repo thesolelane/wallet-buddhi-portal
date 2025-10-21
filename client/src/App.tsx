@@ -4,7 +4,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme-provider";
-import { WalletProvider } from "@/lib/wallet-context";
+import { SolanaProvider } from "@/lib/SolanaProvider";
+import { WalletProvider } from "@/lib/wallet-context-new";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import GettingStarted from "@/pages/GettingStarted";
@@ -29,12 +30,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark">
-        <WalletProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-          </TooltipProvider>
-        </WalletProvider>
+        <SolanaProvider>
+          <WalletProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+            </TooltipProvider>
+          </WalletProvider>
+        </SolanaProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

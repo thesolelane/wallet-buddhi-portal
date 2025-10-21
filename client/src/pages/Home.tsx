@@ -5,30 +5,22 @@ import { Header } from "@/components/Header";
 import { TierCard } from "@/components/TierCard";
 import { FeatureCard } from "@/components/FeatureCard";
 import { Footer } from "@/components/Footer";
-import { WalletConnectModal } from "@/components/WalletConnectModal";
 import { UpgradeModal } from "@/components/UpgradeModal";
-import { useWallet } from "@/lib/wallet-context";
+import { useWallet } from "@/lib/wallet-context-new";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { Shield, Brain, Bot, Zap, Lock, TrendingUp } from "lucide-react";
 import type { TierType } from "@/components/TierBadge";
 
 export default function Home() {
   const [, navigate] = useLocation();
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState<"pro" | "pro_plus">("pro");
-  const { connected, address, tier, connect, upgradeTier } = useWallet();
-
-  const handleConnectWallet = () => {
-    setWalletModalOpen(true);
-  };
-
-  const handleWalletConnect = async (walletType: any) => {
-    await connect(walletType);
-  };
+  const { connected, tier, upgradeTier } = useWallet();
+  const { setVisible } = useWalletModal();
 
   const handleUpgrade = (tierName: string) => {
     if (!connected) {
-      handleConnectWallet();
+      setVisible(true);
       return;
     }
 
@@ -96,15 +88,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header
-        onConnectWallet={handleConnectWallet}
-        walletConnected={connected}
-        walletAddress={address || undefined}
-        currentTier={tier}
-      />
+      <Header />
 
       <main className="flex-1">
-        <Hero onGetStarted={handleConnectWallet} />
+        <Hero onGetStarted={() => setVisible(true)} />
 
         <section className="py-16 md:py-24 bg-muted/30">
           <div className="container mx-auto px-4 md:px-8">
@@ -184,17 +171,10 @@ export default function Home() {
 
       <Footer />
 
-      <WalletConnectModal
-        open={walletModalOpen}
-        onOpenChange={setWalletModalOpen}
-        onConnect={handleWalletConnect}
-      />
-
       <UpgradeModal
         open={upgradeModalOpen}
         onOpenChange={setUpgradeModalOpen}
         tier={selectedTier}
-        walletAddress={address || ""}
         onUpgrade={handleUpgradeComplete}
       />
     </div>

@@ -11,12 +11,12 @@ import { Check, Loader2, Copy, CheckCircle, ExternalLink } from "lucide-react";
 import type { TierType } from "@/components/TierBadge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useWallet } from "@/lib/wallet-context-new";
 
 interface UpgradeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tier: "pro" | "pro_plus";
-  walletAddress: string;
   onUpgrade: (tier: TierType) => void;
 }
 
@@ -24,9 +24,9 @@ export function UpgradeModal({
   open,
   onOpenChange,
   tier,
-  walletAddress,
   onUpgrade,
 }: UpgradeModalProps) {
+  const { address: walletAddress } = useWallet();
   const [paymentMethod, setPaymentMethod] = useState<"sol" | "cath">("sol");
   const [paymentUrl, setPaymentUrl] = useState<string>("");
   const [referenceKey, setReferenceKey] = useState<string>("");

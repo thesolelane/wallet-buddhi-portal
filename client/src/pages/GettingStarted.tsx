@@ -3,21 +3,10 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Wallet, Shield, TrendingUp, CreditCard, CheckCircle2, AlertCircle } from "lucide-react";
-import { useWallet } from "@/lib/wallet-context";
-import { useState } from "react";
-import { WalletConnectModal } from "@/components/WalletConnectModal";
+import { useWallet } from "@/lib/wallet-context-new";
 
 export default function GettingStarted() {
-  const { connected, address, tier, connect } = useWallet();
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
-
-  const handleConnectWallet = () => {
-    setWalletModalOpen(true);
-  };
-
-  const handleWalletConnect = async (walletType: any) => {
-    await connect(walletType);
-  };
+  const { connected, address, tier } = useWallet();
 
   const steps = [
     {
@@ -76,12 +65,7 @@ export default function GettingStarted() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header
-        onConnectWallet={handleConnectWallet}
-        walletConnected={connected}
-        walletAddress={address || undefined}
-        currentTier={tier}
-      />
+      <Header />
 
       <main className="flex-1 py-12 md:py-16">
         <div className="container mx-auto px-4 md:px-8 max-w-5xl">
@@ -178,11 +162,6 @@ export default function GettingStarted() {
       </main>
 
       <Footer />
-      <WalletConnectModal
-        open={walletModalOpen}
-        onOpenChange={setWalletModalOpen}
-        onConnect={handleWalletConnect}
-      />
     </div>
   );
 }
