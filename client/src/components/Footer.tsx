@@ -1,12 +1,11 @@
-import { Shield, Twitter, Github, FileText } from "lucide-react";
+import { Shield, Twitter, Github, Mail } from "lucide-react";
 import { SiDiscord, SiSolana } from "react-icons/si";
 
 export function Footer() {
-  const links = [
-    { label: "Documentation", icon: FileText, href: "#" },
-    { label: "GitHub", icon: Github, href: "#" },
-    { label: "Twitter", icon: Twitter, href: "#" },
-    { label: "Discord", icon: SiDiscord, href: "#" },
+  const socialLinks = [
+    { label: "GitHub", icon: Github, href: "#", testId: "link-github" },
+    { label: "Twitter", icon: Twitter, href: "#", testId: "link-twitter" },
+    { label: "Discord", icon: SiDiscord, href: "#", testId: "link-discord" },
   ];
 
   return (
@@ -27,36 +26,101 @@ export function Footer() {
                 wbuddhi.cooperanth.sol
               </span>
             </div>
+            <p className="text-xs text-muted-foreground pt-2">
+              A partner of{" "}
+              <a
+                href="https://cooperanth.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors underline"
+                data-testid="link-cooperanth"
+              >
+                Cooperanth Consulting LLC
+              </a>
+            </p>
           </div>
 
           <div>
             <h4 className="font-semibold mb-4">Product</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-foreground transition-colors">Features</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">Pricing</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">FAQ</a></li>
+              <li>
+                <a href="#pricing" className="hover:text-foreground transition-colors" data-testid="link-pricing">
+                  Pricing
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-foreground transition-colors" data-testid="link-features">
+                  Features
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-foreground transition-colors" data-testid="link-faq">
+                  FAQ
+                </a>
+              </li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4">Resources</h4>
+            <h4 className="font-semibold mb-4">Company</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-foreground transition-colors">Documentation</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">API Reference</a></li>
-              <li><a href="#" className="hover:text-foreground transition-colors">Support</a></li>
+              <li>
+                <a href="#" className="hover:text-foreground transition-colors" data-testid="link-about">
+                  About Us
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-foreground transition-colors" data-testid="link-careers">
+                  Careers
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-foreground transition-colors" data-testid="link-contact">
+                  Contact
+                </a>
+              </li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4">Community</h4>
+            <h4 className="font-semibold mb-4">Legal & Support</h4>
+            <ul className="space-y-2 text-sm text-muted-foreground mb-4">
+              <li>
+                <a
+                  href="https://cooperanth.com/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors"
+                  data-testid="link-privacy"
+                >
+                  Privacy Policy
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://cooperanth.com/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors"
+                  data-testid="link-terms"
+                >
+                  Terms of Service
+                </a>
+              </li>
+              <li>
+                <a href="#" className="hover:text-foreground transition-colors" data-testid="link-support">
+                  Support
+                </a>
+              </li>
+            </ul>
             <div className="flex gap-3">
-              {links.map((link) => (
+              {socialLinks.map((link) => (
                 <a
                   key={link.label}
                   href={link.href}
                   className="p-2 rounded-lg bg-muted hover-elevate active-elevate-2 transition-all"
                   aria-label={link.label}
-                  data-testid={`link-${link.label.toLowerCase()}`}
+                  data-testid={link.testId}
                 >
                   <link.icon className="h-5 w-5" />
                 </a>
