@@ -99,21 +99,29 @@ Preferred communication style: Simple, everyday language.
 ### Authentication and Authorization
 
 **Current Implementation:**
-- **Real wallet-based authentication** via direct browser wallet integration
+- **Official Solana Wallet Adapter Integration** via @solana/wallet-adapter-react packages
 - Native support for Phantom, Solflare, and Backpack wallets
-- Custom wallet adapter (`client/src/lib/wallet-adapter.ts`) using browser wallet APIs
-- Client-side wallet state management through WalletContext
+- Industry-standard wallet adapter used by most Solana dApps
+- Client-side wallet state management through WalletContext wrapper
 - Three tier levels: Basic (free), Pro, Pro+ with feature gating
 
-**Wallet Connection Features:**
+**Official Wallet Adapter Features:**
 - Automatic detection of installed browser wallet extensions
-- Real-time connection status with visual indicators (pulsing green dot when connected)
-- Wallet connection modal with installation status for each wallet
-- Disconnect functionality via dropdown menu from connected wallet button
+- Built-in wallet selection modal with installation status
+- WalletMultiButton component provides all wallet UI interactions
+- Disconnect functionality via dropdown menu (Copy Address, Change Wallet, Disconnect)
+- Wallet switching - users can change wallets without disconnecting
 - Account change listeners - updates UI when wallet switches accounts
 - Disconnect event handling - cleans up state when wallet disconnects externally
+- Auto-reconnect support - remembers last connected wallet
 - Toast notifications for connection/disconnection events
-- Connection flow: User approves via browser wallet extension → App receives public key
+- Connection flow: User selects wallet → Approves via extension → App receives public key
+
+**Wallet Adapter Architecture:**
+- `SolanaProvider` (`client/src/lib/SolanaProvider.tsx`): Wraps app with ConnectionProvider, WalletProvider, WalletModalProvider
+- `WalletContext` (`client/src/lib/wallet-context-new.tsx`): Wraps official adapter hooks, manages tier state
+- `WalletButton` (`client/src/components/WalletButton-new.tsx`): Uses WalletMultiButton from @solana/wallet-adapter-react-ui
+- Programmatic modal control via `useWalletModal().setVisible(true)` hook
 
 **Future Integration Points:**
 - Session management prepared via connect-pg-simple package
@@ -127,11 +135,13 @@ Preferred communication style: Simple, everyday language.
 - Dual-layer tier tracking: cached (off-chain) and verified (on-chain)
 
 **Wallet Integration Technical Details:**
-- Direct browser API access: `window.solana` (Phantom), `window.solflare` (Solflare), `window.backpack` (Backpack)
-- No external wallet adapter packages used - custom lightweight implementation
+- Official packages: @solana/wallet-adapter-react, @solana/wallet-adapter-react-ui
+- Individual wallet adapters: @solana/wallet-adapter-phantom, solflare, backpack
+- Supports Standard Wallet protocol for auto-detection
 - Public key extraction and display (truncated format: xxxx...xxxx)
-- Copy address to clipboard functionality
+- Copy address to clipboard functionality built into WalletMultiButton
 - Works with browser extensions only (requires user to have wallet installed)
+- RPC endpoint configurable via environment variables (defaults to devnet)
 
 ### On-Chain Smart Contract (Solana Program)
 
@@ -183,7 +193,11 @@ Preferred communication style: Simple, everyday language.
 - **@coral-xyz/anchor**: Anchor framework for Solana program development and client interaction
 - **@solana/pay**: Solana Pay protocol for on-chain payment processing
 - **@solana/spl-token**: SPL token operations for $CATH token payments
-- **Custom Wallet Adapter**: Direct browser integration for Phantom, Solflare, and Backpack wallets via `window` objects
+- **@solana/wallet-adapter-react**: Official Solana wallet adapter React hooks and context providers
+- **@solana/wallet-adapter-react-ui**: Official Solana wallet adapter UI components (WalletMultiButton, WalletModal)
+- **@solana/wallet-adapter-phantom**: Official Phantom wallet adapter
+- **@solana/wallet-adapter-solflare**: Official Solflare wallet adapter
+- **@solana/wallet-adapter-backpack**: Official Backpack wallet adapter
 
 ### Database & ORM
 - **@neondatabase/serverless**: Neon serverless PostgreSQL driver
