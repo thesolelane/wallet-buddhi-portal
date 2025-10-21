@@ -13,7 +13,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "./ui/navigation-menu";
-import logoImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM_1761077109275.png";
+import logoImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM (1)_1761084038488.png";
 
 interface HeaderProps {
   onConnectWallet: () => void;
