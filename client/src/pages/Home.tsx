@@ -22,10 +22,8 @@ export default function Home() {
     setWalletModalOpen(true);
   };
 
-  const handleWalletConnect = (walletType: string) => {
-    // Simulate wallet connection with a demo address
-    const demoAddress = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
-    connect(walletType, demoAddress);
+  const handleWalletConnect = async (walletType: any) => {
+    await connect(walletType);
   };
 
   const handleUpgrade = (tierName: string) => {

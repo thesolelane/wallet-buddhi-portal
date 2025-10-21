@@ -25,9 +25,8 @@ export default function Security() {
     setWalletModalOpen(true);
   };
 
-  const handleWalletConnect = (walletType: string) => {
-    const demoAddress = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
-    connect(walletType, demoAddress);
+  const handleWalletConnect = async (walletType: any) => {
+    await connect(walletType);
   };
 
   const bestPractices = [

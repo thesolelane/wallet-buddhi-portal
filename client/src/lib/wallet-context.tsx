@@ -1,13 +1,24 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import type { TierType } from "@/components/TierBadge";
+import {
+  connectWallet,
+  disconnectWallet,
+  onAccountChange,
+  onDisconnect,
+  type WalletName,
+  WalletConnectionError,
+} from "./wallet-adapter";
+import { useToast } from "@/hooks/use-toast";
 
 interface WalletContextType {
   connected: boolean;
+  connecting: boolean;
   address: string | null;
   tier: TierType;
   onChainTier: TierType | null;
-  connect: (walletType: string, address: string) => void;
-  disconnect: () => void;
+  walletName: WalletName | null;
+  connect: (walletType: WalletName) => Promise<void>;
+  disconnect: () => Promise<void>;
   upgradeTier: (newTier: TierType) => void;
   refreshTier: () => Promise<void>;
 }
@@ -16,11 +27,15 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
   const [tier, setTier] = useState<TierType>("basic");
   const [onChainTier, setOnChainTier] = useState<TierType | null>(null);
+  const [walletName, setWalletName] = useState<WalletName | null>(null);
+  const [provider, setProvider] = useState<any>(null);
+  const { toast } = useToast();
 
-  const refreshTier = async () => {
+  const refreshTier = useCallback(async () => {
     if (!address) return;
 
     try {
@@ -33,25 +48,94 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error fetching tier:", error);
     }
-  };
+  }, [address]);
 
   useEffect(() => {
     if (connected && address) {
       refreshTier();
     }
-  }, [connected, address]);
+  }, [connected, address, refreshTier]);
 
-  const connect = async (walletType: string, walletAddress: string) => {
-    console.log(`Connecting to ${walletType} wallet...`);
-    setConnected(true);
-    setAddress(walletAddress);
-  };
+  useEffect(() => {
+    if (!provider) return;
 
-  const disconnect = () => {
+    const unsubscribeAccountChange = onAccountChange(provider, (newPublicKey) => {
+      if (newPublicKey) {
+        setAddress(newPublicKey);
+      } else {
+        handleDisconnect();
+      }
+    });
+
+    const unsubscribeDisconnect = onDisconnect(provider, () => {
+      handleDisconnect();
+    });
+
+    return () => {
+      unsubscribeAccountChange();
+      unsubscribeDisconnect();
+    };
+  }, [provider]);
+
+  const handleDisconnect = () => {
     setConnected(false);
     setAddress(null);
     setTier("basic");
     setOnChainTier(null);
+    setWalletName(null);
+    setProvider(null);
+  };
+
+  const connect = async (walletType: WalletName) => {
+    setConnecting(true);
+    try {
+      const { publicKey, provider: walletProvider } = await connectWallet(walletType);
+      
+      setAddress(publicKey);
+      setWalletName(walletType);
+      setProvider(walletProvider);
+      setConnected(true);
+
+      toast({
+        title: "Wallet Connected",
+        description: `Successfully connected to ${walletType.charAt(0).toUpperCase() + walletType.slice(1)}`,
+      });
+    } catch (error) {
+      console.error("Wallet connection error:", error);
+      
+      if (error instanceof WalletConnectionError) {
+        toast({
+          title: "Connection Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Connection Failed",
+          description: "Failed to connect to wallet. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const disconnect = async () => {
+    try {
+      if (provider) {
+        await disconnectWallet(provider);
+      }
+      handleDisconnect();
+      
+      toast({
+        title: "Wallet Disconnected",
+        description: "Your wallet has been disconnected",
+      });
+    } catch (error) {
+      console.error("Error disconnecting wallet:", error);
+      handleDisconnect();
+    }
   };
 
   const upgradeTier = (newTier: TierType) => {
@@ -61,7 +145,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   return (
     <WalletContext.Provider
-      value={{ connected, address, tier, onChainTier, connect, disconnect, upgradeTier, refreshTier }}
+      value={{
+        connected,
+        connecting,
+        address,
+        tier,
+        onChainTier,
+        walletName,
+        connect,
+        disconnect,
+        upgradeTier,
+        refreshTier,
+      }}
     >
       {children}
     </WalletContext.Provider>
