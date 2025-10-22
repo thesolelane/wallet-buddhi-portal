@@ -1,6 +1,6 @@
 import { Twitter, Github } from "lucide-react";
 import { SiDiscord, SiSolana } from "react-icons/si";
-import logoImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM_1761077109275.png";
+import logoImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM (1)_1761084038488.png";
 
 export function Footer() {
   const socialLinks = [
