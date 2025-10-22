@@ -22,6 +22,8 @@ export function SolanaProvider({ children }: SolanaProviderProps) {
   }, [network]);
 
   // Initialize wallet adapters
+  // Using explicit adapters ensures all wallets show in modal with installation status
+  // even when browser extensions are not installed
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),

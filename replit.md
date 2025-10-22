@@ -122,6 +122,7 @@ Preferred communication style: Simple, everyday language.
 - `WalletContext` (`client/src/lib/wallet-context-new.tsx`): Wraps official adapter hooks, manages tier state
 - `WalletButton` (`client/src/components/WalletButton-new.tsx`): Uses WalletMultiButton from @solana/wallet-adapter-react-ui
 - Programmatic modal control via `useWalletModal().setVisible(true)` hook
+- Explicit wallet adapters for Phantom, Solflare, and Backpack ensure all wallets appear in modal with installation status
 
 **Future Integration Points:**
 - Session management prepared via connect-pg-simple package
@@ -136,8 +137,9 @@ Preferred communication style: Simple, everyday language.
 
 **Wallet Integration Technical Details:**
 - Official packages: @solana/wallet-adapter-react, @solana/wallet-adapter-react-ui
-- Individual wallet adapters: @solana/wallet-adapter-phantom, solflare, backpack
-- Supports Standard Wallet protocol for auto-detection
+- Explicit wallet adapters: @solana/wallet-adapter-phantom, @solana/wallet-adapter-solflare, @solana/wallet-adapter-backpack
+- All three wallets (Phantom, Solflare, Backpack) use explicit adapters for consistent UX
+- Wallets appear in modal with installation status regardless of whether extensions are installed
 - Public key extraction and display (truncated format: xxxx...xxxx)
 - Copy address to clipboard functionality built into WalletMultiButton
 - Works with browser extensions only (requires user to have wallet installed)
