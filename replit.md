@@ -14,7 +14,9 @@ Wallet Buddhi is a tiered Solana wallet protection system featuring AI-powered t
 
 **Target Audience:** Solana ecosystem users with wallets like Phantom, Solflare, and Backpack
 
-**Domain:** wbuddhi.cooperanth.sol (Solana Name Service)
+**Domains:**
+- Main website: wbuddhi.cooperanth.sol (Solana Name Service)
+- User wallet distribution: wbuddhi.sol
 
 ## User Preferences
 

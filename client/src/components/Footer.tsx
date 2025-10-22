@@ -25,11 +25,16 @@ export function Footer() {
             <p className="text-sm text-muted-foreground">
               Protect your Solana wallet with AI-powered security and automated trading.
             </p>
-            <div className="flex items-center gap-2 text-sm">
-              <SiSolana className="h-4 w-4 text-primary" />
-              <span className="font-mono text-muted-foreground">
-                wbuddhi.cooperanth.sol
-              </span>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm">
+                <SiSolana className="h-4 w-4 text-primary" />
+                <span className="font-mono text-muted-foreground">
+                  wbuddhi.cooperanth.sol
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground pl-6">
+                User wallets via wbuddhi.sol
+              </p>
             </div>
             <p className="text-xs text-muted-foreground pt-2">
               A partner of{" "}
