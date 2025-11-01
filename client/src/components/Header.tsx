@@ -39,7 +39,7 @@ export function Header() {
               <div className="flex flex-col">
                 <span className="font-bold text-base md:text-lg">Wallet Buddhi</span>
                 <span className="text-xs text-muted-foreground font-mono hidden sm:block">
-                  wbuddhi.cooperanth.sol
+                  portal.wbuddhi.sol
                 </span>
               </div>
             </button>

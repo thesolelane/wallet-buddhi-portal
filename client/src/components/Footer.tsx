@@ -29,11 +29,11 @@ export function Footer() {
               <div className="flex items-center gap-2 text-sm">
                 <SiSolana className="h-4 w-4 text-primary" />
                 <span className="font-mono text-muted-foreground">
-                  wbuddhi.cooperanth.sol
+                  portal.wbuddhi.sol
                 </span>
               </div>
               <p className="text-xs text-muted-foreground pl-6">
-                User wallets via wbuddhi.sol
+                User wallets: xxxx.wbuddhi.sol
               </p>
             </div>
             <p className="text-xs text-muted-foreground pt-2">

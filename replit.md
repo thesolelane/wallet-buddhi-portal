@@ -15,8 +15,9 @@ Wallet Buddhi is the central management portal for a tiered Solana wallet protec
 **Target Audience:** Solana ecosystem users with wallets like Phantom, Solflare, and Backpack
 
 **Domains:**
-- Main portal: wbuddhi.cooperanth.sol (Solana Name Service)
-- User wallet distribution: wbuddhi.sol (custom subdomains: xxxx.wbuddhi.sol)
+- Main portal: portal.wbuddhi.sol (this application)
+- Root registry: wbuddhi.sol (subdomain registry and wallet assignment)
+- User wallets: xxxx.wbuddhi.sol (custom subdomains)
 
 ## User Preferences
 
