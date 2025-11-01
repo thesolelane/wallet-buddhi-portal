@@ -215,28 +215,164 @@ wallet-buddhi-portal/
 └── README.md                    # This file
 ```
 
-## Development
+## API Documentation
 
-```bash
-# Install dependencies
-npm install
+### Authentication
 
-# Run development server (frontend + backend)
-npm run dev
+All protected endpoints require a connected Solana wallet. The wallet address is used as the primary identifier.
 
-# Build for production
-npm run build
+### Endpoints
 
-# Start production server
-npm start
+#### Wallet Management
+
+**GET /api/wallet/:address**
+```typescript
+// Get or create wallet account
+Response: {
+  id: string
+  walletAddress: string
+  tier: "basic" | "pro" | "pro+"
+  onChainTier: "basic" | "pro" | "pro+"
+}
 ```
 
-## Related Components
+**GET /api/wallet/:address/tier**
+```typescript
+// Get on-chain tier status
+Response: {
+  tier: string
+  tierEnum: number
+}
+```
 
-This is the **portal** component. Other Wallet Buddhi components (if they exist):
-- Mobile app (separate repository)
-- Browser extension (separate repository)
-- Backend services (separate repository)
+#### Payment Processing
+
+**POST /api/payments/create**
+```typescript
+Request: {
+  walletAddress: string
+  tier: "pro" | "pro+"
+  currency: "sol" | "cath"
+}
+
+Response: {
+  paymentUrl: string
+  referenceKey: string
+  amount: string
+  currency: string
+  transactionId: string
+}
+```
+
+**POST /api/payments/verify**
+```typescript
+Request: {
+  referenceKey: string
+}
+
+Response: {
+  status: "pending" | "confirmed"
+  tier?: string
+  signature?: string
+  onChainSignature?: string
+}
+```
+
+**GET /api/payments/status/:referenceKey**
+```typescript
+// Check payment transaction status
+Response: {
+  status: string
+  tier: string
+  amount: string
+  currency: string
+  signature: string | null
+  createdAt: Date
+  confirmedAt: Date | null
+}
+```
+
+#### Verification Codes (Coming Soon)
+
+**POST /api/verification/generate**
+```typescript
+// Generate verification code for mobile app
+Request: {
+  walletAddress: string
+}
+
+Response: {
+  code: string
+  expiresAt: Date
+}
+```
+
+**POST /api/verification/validate**
+```typescript
+// Validate verification code from mobile app
+Request: {
+  code: string
+}
+
+Response: {
+  valid: boolean
+  walletAddress: string
+  assignedSubdomain: string
+}
+```
+
+## Smart Contracts
+
+### Wallet Buddhi Program
+
+**Program ID:** `EcorGtD2gpLK9FRGHCJwSd1PPRhVo2yDWYkpEvPfoogQ` (devnet)
+
+**Status:** Written but not deployed (requires Rust toolchain for compilation)
+
+### Program Instructions
+
+1. **initialize_user**
+   - Creates a new UserAccount PDA for a wallet address
+   - Default tier: Basic
+   - One-time operation per wallet
+
+2. **upgrade_tier**
+   - Updates user tier after payment verification
+   - Validates payment signature
+   - Updates on-chain tier status
+
+3. **get_user_tier**
+   - Queries current tier from on-chain account
+   - Returns tier enum (0=Basic, 1=Pro, 2=Pro+)
+
+### Deployment Guide
+
+To deploy the smart contract:
+
+```bash
+# Install Rust and Solana CLI
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
+
+# Install Anchor
+npm install -g @coral-xyz/anchor-cli
+
+# Build the program
+cd programs/wallet-buddhi
+anchor build
+
+# Deploy to devnet
+anchor deploy --provider.cluster devnet
+
+# Update program ID in code with deployed address
+```
+
+## Related Repositories
+
+This is the **portal** component. Other Wallet Buddhi components:
+- **Mobile App**: `thesolelane/wallet-buddhi-app` (iOS/Android)
+- **Browser Extension**: (separate repository - if exists)
+- **Backend Services**: (separate repository - if exists)
 
 ## User Onboarding Flows
 
@@ -274,21 +410,275 @@ This is the **portal** component. Other Wallet Buddhi components (if they exist)
 - Shadcn UI + Tailwind CSS
 - TanStack Query for state management
 
-## Environment Variables
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file in the root directory (optional - defaults work for development):
 
 ```bash
-# Optional - defaults to devnet
-SOLANA_NETWORK=devnet
-VITE_SOLANA_NETWORK=devnet
+# Solana Network Configuration
+SOLANA_NETWORK=devnet              # Options: devnet, mainnet-beta
+VITE_SOLANA_NETWORK=devnet         # Frontend Solana network
+
+# Session Secret (required for production)
+SESSION_SECRET=your-secret-key-here
+
+# Database (optional - currently using in-memory storage)
+# DATABASE_URL=postgresql://user:password@host:port/database
 ```
+
+### Network Configuration
+
+**Devnet (Default)**
+- RPC Endpoint: `https://api.devnet.solana.com`
+- Use for development and testing
+- Free SOL from faucet available
+
+**Mainnet-Beta (Production)**
+- RPC Endpoint: `https://api.mainnet-beta.solana.com`
+- Use for production deployment
+- Real SOL and $CATH tokens required
+
+### Domain Configuration
+
+To deploy on custom domain:
+
+1. **Acquire Domain**: Register `walletbuddhi.io`
+2. **Configure DNS**: Point to Replit deployment
+3. **SNS Setup**: Configure `portal.wbuddhi.sol` to resolve to web2 domain
+4. **SSL/TLS**: Automatically handled by Replit
+
+## Deployment
+
+### Replit Deployment (Current)
+
+The portal is hosted on Replit with automatic deployment:
+
+1. **Push to Git**: Changes automatically trigger rebuild
+2. **Workflow Restart**: Automatically restarts on file changes
+3. **Environment**: Production mode enabled via `NODE_ENV=production`
+
+**Access:**
+- Development: `https://[your-repl].replit.dev`
+- Production: `https://walletbuddhi.io` (when configured)
+
+### Custom Domain Setup
+
+1. **Register Domain**: `walletbuddhi.io`
+2. **Replit Settings**:
+   - Navigate to Replit deployment settings
+   - Add custom domain
+   - Copy provided DNS records
+3. **DNS Configuration**:
+   - Add A/CNAME records to domain registrar
+   - Wait for DNS propagation (24-48 hours)
+4. **SSL Certificate**: Auto-provisioned by Replit
+
+### Database Migration (When Ready)
+
+Currently using in-memory storage. To migrate to PostgreSQL:
+
+1. **Create Database**:
+   ```bash
+   # Use Replit's database creation tool
+   # Or provision Neon Serverless PostgreSQL
+   ```
+
+2. **Set DATABASE_URL**:
+   ```bash
+   DATABASE_URL=postgresql://user:password@host/db
+   ```
+
+3. **Push Schema**:
+   ```bash
+   npm run db:push
+   ```
+
+4. **Update Storage**:
+   - Replace `MemStorage` with database implementation
+   - Restart server
+
+## Security
+
+### Best Practices
+
+✅ **Never expose private keys** - Wallet adapter handles signing securely  
+✅ **HTTPS only** - All production traffic encrypted  
+✅ **Input validation** - Zod schemas validate all API requests  
+✅ **Rate limiting** - Implement on payment endpoints  
+✅ **CORS configuration** - Restrict to trusted domains  
+✅ **Session secrets** - Use strong, random SESSION_SECRET in production  
+
+### Wallet Security
+
+- Portal **never** requests private keys
+- All transactions signed in user's wallet (Phantom/Solflare/Backpack)
+- Users maintain full custody of funds
+- Smart contract interactions require explicit user approval
+
+### Smart Contract Security
+
+- Anchor framework provides built-in security features
+- Program-derived addresses (PDAs) prevent unauthorized access
+- Payment verification before tier upgrades
+- On-chain audit trail for all tier changes
+
+### Reported Vulnerabilities
+
+To report security vulnerabilities:
+- **Email**: security@cooperanth.com
+- **Response Time**: 24-48 hours
+- **Disclosure**: Coordinated disclosure policy
+
+## Contributing
+
+We welcome contributions to the Wallet Buddhi Portal! Here's how to get started:
+
+### Development Workflow
+
+1. **Fork the repository**
+2. **Create a feature branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+3. **Make your changes**
+   - Follow existing code style
+   - Add tests if applicable
+   - Update documentation
+4. **Test your changes**
+   ```bash
+   npm run check    # TypeScript type checking
+   npm run dev      # Manual testing
+   ```
+5. **Commit with clear messages**
+   ```bash
+   git commit -m "feat: add verification code API endpoint"
+   ```
+6. **Push to your fork**
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+7. **Open a Pull Request**
+
+### Code Style
+
+- **TypeScript**: Strict mode enabled
+- **Formatting**: Follow existing patterns
+- **Naming**: Descriptive, camelCase for variables/functions
+- **Comments**: Only for complex logic (code should be self-documenting)
+
+### Commit Message Convention
+
+```
+feat: new feature
+fix: bug fix
+docs: documentation changes
+style: formatting, missing semicolons, etc
+refactor: code restructuring
+test: adding tests
+chore: maintenance tasks
+```
+
+### Areas for Contribution
+
+- 🐛 Bug fixes
+- ✨ New features (discuss in issues first)
+- 📝 Documentation improvements
+- 🎨 UI/UX enhancements
+- 🔒 Security improvements
+- ⚡ Performance optimizations
+
+## Roadmap
+
+### Phase 1: MVP (Current)
+- [x] Wallet authentication (Phantom, Solflare, Backpack)
+- [x] Tier management (Basic/Pro/Pro+)
+- [x] Payment processing (SOL/$CATH)
+- [x] Basic dashboard
+- [ ] Verification code system for mobile app
+- [ ] Deploy smart contracts to devnet
+
+### Phase 2: Production
+- [ ] Deploy to `walletbuddhi.io`
+- [ ] Migrate to PostgreSQL database
+- [ ] Deploy smart contracts to mainnet
+- [ ] Transfer `wbuddhi.sol` to Squads multisig
+- [ ] Deep3 Labs AI integration
+- [ ] Full mobile app integration
+
+### Phase 3: Advanced Features
+- [ ] Arbitrage bot assignment (Pro+ tier)
+- [ ] Real-time transaction monitoring
+- [ ] NFT pass minting for tier verification
+- [ ] Advanced analytics dashboard
+- [ ] Multi-language support
+
+## Troubleshooting
+
+### Common Issues
+
+**Wallet won't connect**
+- Ensure wallet extension is installed and unlocked
+- Try refreshing the page
+- Clear browser cache and cookies
+- Check browser console for errors
+
+**Payment not confirming**
+- Wait 30-60 seconds for blockchain confirmation
+- Check transaction on Solana Explorer
+- Ensure sufficient SOL for transaction fees
+- Verify correct network (devnet/mainnet)
+
+**Build errors**
+- Delete `node_modules` and reinstall: `rm -rf node_modules && npm install`
+- Clear npm cache: `npm cache clean --force`
+- Check Node.js version: `node -v` (should be 20.x)
+
+**Port already in use**
+- Kill process on port 5000: `lsof -ti:5000 | xargs kill -9`
+- Or use different port in configuration
+
+## Support
+
+### Community
+
+- **GitHub Issues**: [Report bugs or request features](https://github.com/yourusername/wallet-buddhi-portal/issues)
+- **Discussions**: [Ask questions and share ideas](https://github.com/yourusername/wallet-buddhi-portal/discussions)
+
+### Professional Support
+
+For enterprise support, integrations, or custom development:
+
+- **Website**: [cooperanth.com](https://cooperanth.com)
+- **Email**: support@cooperanth.com
+
+### Documentation
+
+- **Solana Documentation**: [docs.solana.com](https://docs.solana.com)
+- **Anchor Framework**: [anchor-lang.com](https://www.anchor-lang.com)
+- **Wallet Adapter**: [solana-labs.github.io/wallet-adapter](https://solana-labs.github.io/wallet-adapter/)
+
+## Acknowledgments
+
+Built with:
+- [Solana](https://solana.com) - High-performance blockchain
+- [Anchor](https://www.anchor-lang.com) - Solana development framework
+- [React](https://react.dev) - UI framework
+- [Shadcn UI](https://ui.shadcn.com) - Component library
+- [Replit](https://replit.com) - Development and deployment platform
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
 <p align="center">
   <strong>Partnership</strong><br/>
   Powered by <a href="https://cooperanth.com">Cooperanth Consulting LLC</a>
+</p>
+
+<p align="center">
+  <sub>Built with ❤️ for the Solana ecosystem</sub>
 </p>
