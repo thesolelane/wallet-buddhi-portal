@@ -136,6 +136,7 @@ export class MemStorage implements IStorage {
       id,
       createdAt: new Date(),
       usedAt: null,
+      assignedSubdomain: insertCode.assignedSubdomain ?? null,
       status: insertCode.status || "pending"
     };
     this.verificationCodes.set(insertCode.code, verificationCode);
