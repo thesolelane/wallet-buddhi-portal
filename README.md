@@ -984,6 +984,255 @@ BURN_WALLET_ADDRESS=<generated_address>
 - Action: Target win-back campaigns
 - Measure: Churn reduction after improvements
 
+## $CATH Ecosystem Integration
+
+### Overview
+
+Wallet Buddhi is part of the broader **$CATH ecosystem**. Users holding tokens from other $CATH ecosystem dApps can burn them to earn NFT passes and benefits in Wallet Buddhi.
+
+### Burn-to-Earn Across Ecosystem
+
+**Concept:**
+Users who hold tokens from other $CATH ecosystem projects can burn those tokens to receive Wallet Buddhi NFT passes, tier upgrades, or rewards.
+
+### How It Works
+
+**1. Identify Eligible $CATH Ecosystem Tokens**
+- Other dApps built on $CATH
+- Partner projects in the ecosystem
+- Governance tokens from $CATH DAOs
+- Legacy tokens being phased out
+
+**2. Burn Ecosystem Tokens**
+```typescript
+// User initiates burn of ecosystem token
+const burnTx = await burnEcosystemToken({
+  token: "OTHER_CATH_DAPP_TOKEN",
+  amount: 1000,
+  targetReward: "wallet_buddhi_pro_pass"
+});
+
+// Tokens sent to burn.wbuddhi.sol
+// Smart contract validates burn
+// Mints NFT pass as reward
+```
+
+**3. Receive Wallet Buddhi NFT Pass**
+- **Tier Passes**: Unlock Pro or Pro+ tier (time-limited or permanent)
+- **Upgrade Capsules**: Early access to new versions
+- **Bonus Rewards**: Additional $CATH tokens based on burn amount
+- **Commemorative NFTs**: Special badges for ecosystem participants
+
+### Supported Ecosystem Tokens
+
+**Example Ecosystem Tokens (for illustration):**
+- `$CATH-DEX` - Tokens from $CATH DEX platform
+- `$CATH-LEND` - Tokens from $CATH lending protocol
+- `$CATH-DAO` - Governance tokens from $CATH DAO
+- Legacy tokens from upgraded $CATH projects
+
+**Burn Ratios:**
+```typescript
+// Example conversion rates
+const burnRatios = {
+  "CATH-DEX": {
+    amount: 10000,      // Burn 10,000 tokens
+    reward: "Pro Pass (30 days)"
+  },
+  "CATH-LEND": {
+    amount: 5000,
+    reward: "Pro+ Pass (15 days)"
+  },
+  "CATH-DAO": {
+    amount: 2500,
+    reward: "v2.0 Upgrade Capsule + 5% $CATH bonus"
+  }
+};
+```
+
+### Benefits
+
+**For Users:**
+- 🔄 **Token Utility** - Give value to held ecosystem tokens
+- 🎁 **Free Access** - Earn Wallet Buddhi tiers without paying SOL/$CATH
+- 🎯 **Portfolio Optimization** - Convert less-used tokens to valuable passes
+- 🏆 **Ecosystem Loyalty** - Rewards for being multi-dApp user
+
+**For $CATH Ecosystem:**
+- 🔥 **Deflationary** - Burns reduce total supply across ecosystem
+- 🤝 **Cross-Promotion** - Users discover other $CATH dApps
+- 💪 **Network Effects** - Stronger together than individual projects
+- 📈 **Increased Adoption** - Lower barrier to entry for new users
+
+**For Wallet Buddhi:**
+- 👥 **User Acquisition** - Attract users from other $CATH projects
+- 🎯 **Targeted Marketing** - Reach proven crypto users
+- 💰 **Revenue Neutral** - Tier access without reducing sales
+- 🌐 **Ecosystem Alignment** - Strengthens $CATH brand
+
+### Technical Implementation
+
+**Smart Contract Logic:**
+
+```rust
+// Anchor program - EcosystemBurn
+pub fn burn_ecosystem_token_for_pass(
+    ctx: Context<BurnForPass>,
+    token_mint: Pubkey,
+    amount: u64
+) -> Result<()> {
+    let ecosystem_token = &ctx.accounts.ecosystem_token;
+    let burn_wallet = &ctx.accounts.burn_wallet;
+    let user = &ctx.accounts.user;
+    
+    // Verify token is eligible ecosystem token
+    let eligible = is_eligible_ecosystem_token(token_mint)?;
+    require!(eligible, ErrorCode::InvalidEcosystemToken);
+    
+    // Get burn ratio from registry
+    let burn_config = get_burn_config(token_mint)?;
+    require!(amount >= burn_config.min_amount, ErrorCode::InsufficientBurn);
+    
+    // Transfer tokens to burn wallet
+    transfer_tokens(
+        ecosystem_token.to_account_info(),
+        burn_wallet.to_account_info(),
+        amount
+    )?;
+    
+    // Mint NFT pass as reward
+    let pass_type = burn_config.reward_pass_type;
+    mint_nft_pass(
+        user.to_account_info(),
+        pass_type,
+        burn_config.duration
+    )?;
+    
+    // Optional: Add bonus $CATH tokens
+    if burn_config.cath_bonus_percent > 0 {
+        let bonus = (amount * burn_config.cath_bonus_percent) / 100;
+        transfer_cath_bonus(user.to_account_info(), bonus)?;
+    }
+    
+    // Record burn event
+    emit!(EcosystemBurnEvent {
+        user: user.key(),
+        token_mint,
+        amount,
+        pass_minted: pass_type,
+        burned_at: Clock::get()?.unix_timestamp,
+    });
+    
+    Ok(())
+}
+```
+
+**Burn Registry:**
+```typescript
+// Ecosystem token burn configurations
+interface BurnConfig {
+  tokenMint: PublicKey;
+  tokenName: string;
+  minBurnAmount: number;
+  rewardType: "tier_pass" | "upgrade_capsule" | "bonus_cath";
+  passDuration?: number; // days (null = permanent)
+  cathBonusPercent?: number;
+  enabled: boolean;
+}
+
+// Example registry
+const ecosystemBurnRegistry: BurnConfig[] = [
+  {
+    tokenMint: new PublicKey("CATH_DEX_TOKEN_MINT"),
+    tokenName: "$CATH-DEX",
+    minBurnAmount: 10000,
+    rewardType: "tier_pass",
+    passDuration: 30,
+    cathBonusPercent: 0,
+    enabled: true
+  },
+  {
+    tokenMint: new PublicKey("CATH_LEND_TOKEN_MINT"),
+    tokenName: "$CATH-LEND",
+    minBurnAmount: 5000,
+    rewardType: "tier_pass",
+    passDuration: 15,
+    cathBonusPercent: 5,
+    enabled: true
+  }
+];
+```
+
+### Portal Integration
+
+**Burn Interface:**
+- Dashboard shows eligible ecosystem tokens in user's wallet
+- "Burn for Pass" button with preview of rewards
+- Confirmation modal with burn ratio and expected NFT pass
+- Transaction signature and burn proof displayed
+- Automatic NFT pass delivery to wallet
+
+**User Flow:**
+1. User navigates to "Ecosystem Rewards" tab in dashboard
+2. Portal scans wallet for eligible $CATH ecosystem tokens
+3. User sees: "You hold 12,500 $CATH-DEX → Burn for Pro Pass (30 days)"
+4. User clicks "Burn for Pass"
+5. Confirms transaction in wallet
+6. Tokens sent to burn.wbuddhi.sol
+7. NFT pass minted and delivered
+8. User's tier automatically upgraded
+
+### Analytics & Tracking
+
+**Burn Wallet Analytics:**
+```typescript
+// Track ecosystem burns separately
+GET /api/analytics/ecosystem-burns
+
+Response: {
+  totalEcosystemBurns: {
+    "CATH-DEX": { count: 234, totalAmount: 2340000 },
+    "CATH-LEND": { count: 156, totalAmount: 780000 },
+    "CATH-DAO": { count: 89, totalAmount: 222500 }
+  },
+  passesIssued: 479,
+  newUsersFromEcosystem: 312,
+  topBurners: [...]
+}
+```
+
+**Marketing Insights:**
+- Which ecosystem tokens drive most burns
+- User acquisition from each partner dApp
+- Conversion rate: burn → active user
+- Lifetime value of ecosystem-acquired users
+
+### Partnership Benefits
+
+**For Partner dApps:**
+- ✅ Marketing channel to active crypto users
+- ✅ Token utility for their holders
+- ✅ Cross-promotion opportunity
+- ✅ Deflationary mechanism for their token
+
+**Collaboration Model:**
+- Partner dApp lists in $CATH ecosystem directory
+- Burn ratios negotiated with partner
+- Revenue share on converted users (optional)
+- Co-marketing campaigns
+- Shared analytics dashboard
+
+### Example Scenario
+
+**User Journey:**
+1. Alice holds 15,000 $CATH-DEX tokens from trading on $CATH DEX
+2. She discovers Wallet Buddhi and wants Pro tier
+3. Instead of buying with SOL, she sees: "Burn 10,000 $CATH-DEX → Get Pro Pass (30 days)"
+4. Alice burns her tokens → Receives Pro Pass NFT
+5. She tries Wallet Buddhi for 30 days
+6. Loves it → Purchases permanent Pro tier with $CATH
+7. **Result:** Token burn + new paying customer + ecosystem growth
+
 ## Troubleshooting
 
 ### Common Issues
