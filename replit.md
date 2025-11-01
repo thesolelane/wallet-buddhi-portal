@@ -1,8 +1,10 @@
-# Wallet Buddhi - Replit Project Guide
+# Wallet Buddhi Portal - Web Management Interface
+
+> **IMPORTANT**: This repository contains the **PORTAL** (web management interface), NOT the mobile app or other components.
 
 ## Overview
 
-Wallet Buddhi is the central management portal for a tiered Solana wallet protection system. This is where the magic happens - custom wallet assignment, tier upgrades, and arbitrage wallet management for Solana users.
+This is the **Wallet Buddhi Portal** - the central web-based management interface for the tiered Solana wallet protection system. This is where the magic happens - custom wallet assignment, tier upgrades, and arbitrage wallet management for Solana users.
 
 **Portal Functions:**
 - **Custom Wallet Assignment**: Users get personalized Solana Name Service subdomains (xxxx.wbuddhi.sol)
