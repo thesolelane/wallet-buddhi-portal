@@ -79,6 +79,7 @@ The portal acts as the source of truth for user identities, tier management, NFT
 - `portal.wbuddhi.sol` - Portal access via SNS
 - `wbuddhi.sol` - Root registry (owned by Squads multisig)
 - `xxxx.wbuddhi.sol` - Individual user wallet subdomains
+- `burn.wbuddhi.sol` - Dead wallet for burned assets and analytics
 
 ## Tech Stack
 
@@ -762,6 +763,226 @@ const finalReward = Math.min(rawReward, capsule.rewards.maxReward);
 - Burns within 30 days → Higher reward percentage
 - Gets commemorative "Genesis User" badge NFT
 - Priority access to future capsules
+
+## Burn Wallet System (burn.wbuddhi.sol)
+
+### Overview
+
+**burn.wbuddhi.sol** is a dedicated dead wallet that serves as the final destination for burned assets, providing transparent on-chain analytics and supply control.
+
+### Purpose
+
+The burn wallet acts as a verifiable graveyard for:
+- 🔥 **Burned Upgrade Capsules** - Redeemed NFT certificates
+- 🗝️ **Expired NFT Passes** - Used tier verification tokens
+- 💰 **Token Burns** - Supply control for $CATH tokenomics
+- 📊 **Analytics Data** - User lifecycle tracking
+
+### What Gets Burned
+
+**1. Upgrade Capsules (After Redemption)**
+- User burns capsule → Receives upgrade + rewards
+- Spent capsule transferred to burn.wbuddhi.sol
+- Preserved for audit trail and analytics
+- Shows adoption rate of new versions
+
+**2. Expired NFT Passes**
+- Tier verification passes after tier change/downgrade
+- Time-limited promotional passes after expiration
+- Failed verification attempts
+- Demonstrates active vs. churned users
+
+**3. Token Supply Control**
+- Excess $CATH from treasury management
+- Buyback-and-burn programs
+- Deflationary tokenomics mechanisms
+- Community-voted burns
+
+**4. Dead/Inactive Certificates**
+- Unclaimed upgrade capsules past expiry date
+- Revoked access passes
+- Deprecated version certificates
+- Shows user engagement metrics
+
+### Analytics & Insights
+
+**User Lifecycle Tracking:**
+
+```typescript
+// Query burn wallet to analyze user behavior
+const burnedCapsules = await getBurnedNFTs("burn.wbuddhi.sol");
+
+// Active Users: Burned recent upgrade capsules
+const activeUsers = burnedCapsules.filter(nft => 
+  nft.type === "upgrade_capsule" && 
+  nft.burnedWithin(30) // days
+);
+
+// Past Users: Expired tier passes
+const pastUsers = burnedCapsules.filter(nft =>
+  nft.type === "tier_pass" &&
+  nft.status === "expired"
+);
+
+// Upgrade Adoption: Version distribution
+const v2Adopters = burnedCapsules.filter(nft =>
+  nft.version === "2.0.0"
+).length;
+
+// Churn Rate: Ratio of expired passes to active users
+const churnRate = pastUsers.length / (activeUsers.length + pastUsers.length);
+```
+
+**Metrics Provided:**
+- 📈 **Upgrade Adoption Rate** - How many users upgraded to each version
+- 👥 **Active User Count** - Users with recent burns (engaged)
+- 📉 **Churn Tracking** - Users with expired/unused passes
+- 🔄 **User Retention** - Ratio of active vs. churned
+- ⏱️ **Time to Upgrade** - Average duration from capsule mint to burn
+- 💎 **Holding Patterns** - Users who held but didn't burn capsules
+- 🎯 **Tier Distribution** - Pro vs. Pro+ engagement
+
+### Technical Implementation
+
+**Burn Mechanism:**
+
+```rust
+// Anchor smart contract - UpgradeVault
+pub fn burn_upgrade_capsule(ctx: Context<BurnCapsule>) -> Result<()> {
+    let capsule = &ctx.accounts.capsule;
+    let burn_wallet = &ctx.accounts.burn_wallet;
+    
+    // Validate capsule
+    require!(capsule.is_valid(), ErrorCode::InvalidCapsule);
+    
+    // Transfer to burn wallet (not destroyed - preserved for analytics)
+    transfer_nft(
+        capsule.to_account_info(),
+        burn_wallet.to_account_info(),
+        &ctx.accounts.authority
+    )?;
+    
+    // Record burn event
+    emit!(CapsuleBurnedEvent {
+        wallet: ctx.accounts.user.key(),
+        capsule_id: capsule.key(),
+        version: capsule.version.clone(),
+        burned_at: Clock::get()?.unix_timestamp,
+    });
+    
+    Ok(())
+}
+```
+
+**Burn Wallet Properties:**
+- ✅ **No Private Key** - Address generated deterministically, no one can withdraw
+- ✅ **Publicly Viewable** - Anyone can query burned assets
+- ✅ **Permanent Record** - Assets never leave, creating immutable history
+- ✅ **On-Chain Analytics** - Real-time data without centralized database
+
+### Benefits
+
+**For Users:**
+- 🔍 **Transparency** - See total burned supply on-chain
+- 📊 **Proof of Upgrade** - Burned capsules prove legitimacy
+- 🎖️ **Status Display** - Show "early adopter" via burn history
+- 💪 **Community Trust** - Verifiable tokenomics
+
+**For Wallet Buddhi:**
+- 📈 **User Insights** - Real engagement metrics from burn patterns
+- 🎯 **Product Decisions** - Data-driven feature prioritization
+- 📣 **Marketing Data** - Proven adoption rates for campaigns
+- 🔒 **Audit Compliance** - Immutable record of all burns
+
+**For Investors/Community:**
+- 💰 **Deflationary Proof** - Visible token burns reduce supply
+- 📊 **Adoption Metrics** - Public data on user growth
+- 🔐 **Accountability** - Cannot fake burns or inflate numbers
+- 🌐 **Decentralized Verification** - No trust required, all on-chain
+
+### Dashboard Integration
+
+**Portal Analytics Dashboard:**
+```typescript
+// Display burn wallet statistics
+const burnStats = {
+  totalBurnedCapsules: 1247,
+  totalBurnedPasses: 3891,
+  cathBurned: "1.2M $CATH",
+  activeUsers: 8453,
+  churnedUsers: 2104,
+  v2AdoptionRate: "67%",
+  avgTimeToUpgrade: "12 days"
+};
+```
+
+**Public API Endpoint:**
+```typescript
+GET /api/analytics/burn-wallet
+
+Response: {
+  address: "burn.wbuddhi.sol",
+  totalAssets: 5138,
+  byType: {
+    upgradeCapsules: 1247,
+    tierPasses: 3891
+  },
+  recentBurns: [...], // Last 100 burns
+  analytics: {
+    activeUserCount: 8453,
+    churnRate: 0.199,
+    adoptionRates: {
+      "v2.0": 0.67,
+      "v1.5": 0.89
+    }
+  }
+}
+```
+
+### Setup & Configuration
+
+**Creating the Burn Wallet:**
+
+```bash
+# Generate deterministic address (no private key stored)
+solana-keygen grind --starts-with burn:1
+
+# Register SNS domain
+# Point burn.wbuddhi.sol → generated address
+
+# Configure in smart contracts
+BURN_WALLET_ADDRESS=<generated_address>
+```
+
+**Integration:**
+- Portal displays burn wallet stats on analytics page
+- Mobile app shows user's contribution to burns
+- Public explorer link for transparency
+- Real-time burn events via WebSocket
+
+### Example Use Cases
+
+**Use Case 1: Quarterly Token Burn**
+- Allocate 5% of quarterly revenue for $CATH buyback
+- Purchase $CATH from market
+- Transfer to burn.wbuddhi.sol
+- Announce burn amount and transaction signature
+- Community verifies on-chain
+
+**Use Case 2: Upgrade Campaign Tracking**
+- Mint 10,000 "v3.0 Upgrade Capsules"
+- Distribute to Pro+ users
+- Track burn rate over 90 days
+- Analyze: 6,700 burned (67% adoption)
+- Identify: 3,300 expired/unused (33% non-engaged)
+- Decision: Focus retention on non-burners
+
+**Use Case 3: Churn Analysis**
+- Query expired tier passes in burn wallet
+- Identify users who downgraded or left
+- Calculate: 15% monthly churn rate
+- Action: Target win-back campaigns
+- Measure: Churn reduction after improvements
 
 ## Troubleshooting
 
