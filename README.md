@@ -1233,6 +1233,265 @@ Response: {
 6. Loves it → Purchases permanent Pro tier with $CATH
 7. **Result:** Token burn + new paying customer + ecosystem growth
 
+### Community Activity Tracking
+
+**Public Leaderboards:**
+
+Track and display which $CATH ecosystem community is most active and engaged with Wallet Buddhi.
+
+**Tracked Metrics:**
+
+```typescript
+// Community activity statistics
+interface CommunityStats {
+  communityName: string;           // e.g., "CATH-DEX Community"
+  tokenSymbol: string;              // e.g., "$CATH-DEX"
+  totalBurns: number;               // Total burn transactions
+  totalTokensBurned: number;        // Total tokens burned
+  uniqueUsers: number;              // Unique wallets that burned
+  passesIssued: number;             // NFT passes minted
+  activeUsers: number;              // Still using Wallet Buddhi
+  conversionRate: number;           // % that became paying users
+  avgBurnAmount: number;            // Average tokens per burn
+  lastBurnTimestamp: number;        // Most recent activity
+  rank: number;                     // Leaderboard position
+}
+```
+
+**Leaderboard Categories:**
+
+**1. Most Active Community (30 days)**
+- Ranked by number of unique users burning tokens
+- Shows community engagement level
+- Updates daily
+
+**2. Highest Volume Community**
+- Ranked by total tokens burned (all-time)
+- Demonstrates commitment to ecosystem
+- Permanent hall of fame
+
+**3. Best Conversion Community**
+- Ranked by % of users who became paying customers
+- Shows quality of community members
+- Incentivizes partner dApps
+
+**4. Most Loyal Community**
+- Ranked by % of users still active after 90 days
+- Retention metric
+- Long-term partnership indicator
+
+**Portal Display:**
+
+**Leaderboard Page:**
+```
+╔═══════════════════════════════════════════════════════════════╗
+║  🏆 $CATH ECOSYSTEM COMMUNITY LEADERBOARD                     ║
+║                                                               ║
+║  Most Active Communities (Last 30 Days)                       ║
+╠═══════════════════════════════════════════════════════════════╣
+║  #1  🥇 CATH-DEX Community                                    ║
+║      → 487 unique users | 2.3M tokens burned                  ║
+║      → 312 passes issued | 67% conversion rate                ║
+╠═══════════════════════════════════════════════════════════════╣
+║  #2  🥈 CATH-LEND Community                                   ║
+║      → 234 unique users | 1.1M tokens burned                  ║
+║      → 189 passes issued | 71% conversion rate                ║
+╠═══════════════════════════════════════════════════════════════╣
+║  #3  🥉 CATH-DAO Community                                    ║
+║      → 156 unique users | 780K tokens burned                  ║
+║      → 123 passes issued | 58% conversion rate                ║
+╚═══════════════════════════════════════════════════════════════╝
+```
+
+**Real-Time Stats Dashboard:**
+```typescript
+// Public API endpoint
+GET /api/ecosystem/leaderboard
+
+Response: {
+  mostActive: [
+    {
+      rank: 1,
+      communityName: "CATH-DEX Community",
+      tokenSymbol: "$CATH-DEX",
+      uniqueUsers: 487,
+      totalTokensBurned: 2340000,
+      passesIssued: 312,
+      conversionRate: 0.67,
+      trend: "↑ +23% vs last month"
+    },
+    // ... more communities
+  ],
+  highestVolume: [...],
+  bestConversion: [...],
+  mostLoyal: [...]
+}
+```
+
+**Visual Analytics:**
+
+**Community Comparison Chart:**
+- Bar chart showing burn volume per community
+- Line graph of activity over time
+- Pie chart of market share (% of total burns)
+- Heatmap of daily activity patterns
+
+**Community Profile Pages:**
+```
+═══════════════════════════════════════════════════
+  CATH-DEX COMMUNITY PROFILE
+═══════════════════════════════════════════════════
+
+  📊 Activity Overview
+  ├─ Total Burns: 2,340 transactions
+  ├─ Total Volume: 2.34M $CATH-DEX burned
+  ├─ Unique Participants: 487 wallets
+  ├─ Passes Issued: 312 NFT passes
+  └─ Active Rate: 67% still using Wallet Buddhi
+
+  📈 Trends
+  ├─ This Month: +23% ↑
+  ├─ Avg Burn Size: 4,804 tokens
+  ├─ Peak Day: Nov 15, 2025 (87 burns)
+  └─ Most Popular Reward: Pro Pass (30 days)
+
+  🏆 Achievements
+  ├─ 🥇 #1 Most Active (3 months running)
+  ├─ 🔥 Burned over 2M tokens milestone
+  ├─ 👥 500+ user milestone reached
+  └─ ⭐ Community of the Month (Oct 2025)
+
+  🎖️ Top Burners
+  1. 7kX9...pQw2 - 127,000 tokens burned
+  2. mB4s...kL9t - 98,500 tokens burned
+  3. pRt6...nM3x - 76,200 tokens burned
+═══════════════════════════════════════════════════
+```
+
+**Gamification & Rewards:**
+
+**Community Challenges:**
+- Monthly burn competitions between communities
+- Winner gets bonus rewards for all members
+- Community badges and achievements
+- Featured placement in portal
+
+**Milestone Rewards:**
+```typescript
+// Community milestones
+const milestones = [
+  {
+    threshold: 100,
+    metric: "uniqueUsers",
+    reward: "Community Badge NFT",
+    bonus: "All members get 5% extra rewards"
+  },
+  {
+    threshold: 1000000,
+    metric: "totalTokensBurned",
+    reward: "1M Burn Club Status",
+    bonus: "Featured on homepage for 30 days"
+  },
+  {
+    threshold: 0.75,
+    metric: "conversionRate",
+    reward: "Elite Community Badge",
+    bonus: "Partner revenue share increased"
+  }
+];
+```
+
+**Competitive Features:**
+- Real-time burn notifications: "CATH-DEX just overtook CATH-LEND!"
+- Weekly community spotlight
+- Monthly community awards ceremony
+- Hall of Fame for all-time leaders
+
+**Marketing Value:**
+
+**For Partner dApps:**
+- Public proof of active community
+- Recruitment tool for new users
+- Bragging rights and social proof
+- Data to share with investors
+
+**For Wallet Buddhi:**
+- Creates FOMO (fear of missing out)
+- Encourages competitive burning
+- Viral marketing through communities
+- Transparent growth metrics
+
+**Social Media Integration:**
+```typescript
+// Auto-generated social posts
+const communityUpdate = {
+  message: "🏆 CATH-DEX Community takes #1 spot!\n\n" +
+           "487 members burned 2.3M tokens this month\n" +
+           "67% became active Wallet Buddhi users\n\n" +
+           "Can your community beat them? 🔥",
+  image: generateLeaderboardImage(),
+  hashtags: ["#CATHEcosystem", "#WalletBuddhi", "#CommunityFirst"]
+};
+```
+
+**Data Privacy:**
+- Individual wallets anonymized (7kX9...pQw2)
+- Only aggregate community stats public
+- Opt-in for personal leaderboard display
+- GDPR compliant data handling
+
+**Technical Implementation:**
+
+```typescript
+// Backend analytics service
+class CommunityStatsService {
+  async calculateCommunityStats(tokenMint: string): Promise<CommunityStats> {
+    const burns = await this.getBurnsByToken(tokenMint);
+    const uniqueWallets = new Set(burns.map(b => b.wallet)).size;
+    const activeUsers = await this.countActiveUsers(burns);
+    const conversions = await this.countConversions(burns);
+    
+    return {
+      communityName: this.getCommunityName(tokenMint),
+      tokenSymbol: this.getTokenSymbol(tokenMint),
+      totalBurns: burns.length,
+      totalTokensBurned: burns.reduce((sum, b) => sum + b.amount, 0),
+      uniqueUsers: uniqueWallets,
+      passesIssued: burns.length,
+      activeUsers,
+      conversionRate: conversions / uniqueWallets,
+      avgBurnAmount: burns.reduce((sum, b) => sum + b.amount, 0) / burns.length,
+      lastBurnTimestamp: Math.max(...burns.map(b => b.timestamp)),
+      rank: 0 // Calculated after sorting
+    };
+  }
+  
+  async getLeaderboard(): Promise<CommunityStats[]> {
+    const allTokens = await this.getEcosystemTokens();
+    const stats = await Promise.all(
+      allTokens.map(token => this.calculateCommunityStats(token.mint))
+    );
+    
+    // Sort by uniqueUsers (descending)
+    stats.sort((a, b) => b.uniqueUsers - a.uniqueUsers);
+    
+    // Assign ranks
+    stats.forEach((stat, index) => stat.rank = index + 1);
+    
+    return stats;
+  }
+}
+```
+
+**Benefits:**
+
+✅ **Transparency** - Public on-chain data everyone can verify  
+✅ **Competition** - Communities compete for top spots  
+✅ **Engagement** - Gamification drives participation  
+✅ **Marketing** - Viral growth through community pride  
+✅ **Insights** - Data-driven partnership decisions  
+✅ **Trust** - Immutable records build credibility
+
 ## Troubleshooting
 
 ### Common Issues
