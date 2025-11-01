@@ -14,17 +14,49 @@
   <a href="https://portal.wbuddhi.sol">⚡ portal.wbuddhi.sol</a>
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Solana-14F195?style=for-the-badge&logo=solana&logoColor=white" alt="Solana"/>
+  <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React"/>
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"/>
+  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS"/>
+</p>
+
 ---
 
 > **🚨 IMPORTANT**: This repository contains the **PORTAL** (web management interface), NOT the mobile app or other Wallet Buddhi components.
 
-## What is This?
+## Table of Contents
 
-This is the **Wallet Buddhi Portal** - a web-based management interface where users:
-- 🎯 Get assigned custom Solana wallet subdomains (xxxx.wbuddhi.sol)
-- 📈 Upgrade subscription tiers (Basic → Pro → Pro+)
-- 🤖 Manage arbitrage trading bots (Pro+ tier)
-- 🛡️ Monitor wallet transactions and security threats
+- [Overview](#overview)
+- [Features](#features)
+- [Domains](#domains)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Project Structure](#project-structure)
+- [User Onboarding Flows](#user-onboarding-flows)
+- [API Documentation](#api-documentation)
+- [Smart Contracts](#smart-contracts)
+- [Architecture](#architecture)
+- [Configuration](#configuration)
+- [Deployment](#deployment)
+- [Security](#security)
+- [Contributing](#contributing)
+- [Related Repositories](#related-repositories)
+- [License](#license)
+- [Support](#support)
+
+## Overview
+
+The **Wallet Buddhi Portal** is a decentralized web application that serves as the central management hub for the Wallet Buddhi ecosystem. Built on Solana blockchain, it provides users with:
+
+- 🎯 **Custom Wallet Assignment** - Personalized Solana Name Service subdomains (xxxx.wbuddhi.sol)
+- 📈 **Tiered Subscriptions** - Flexible pricing with Basic (free), Pro, and Pro+ tiers
+- 🤖 **Arbitrage Bot Management** - Automated trading across Solana DEXs (Pro+ tier)
+- 🛡️ **Security Monitoring** - Real-time transaction monitoring and AI-powered threat detection
+- 💳 **On-Chain Payments** - Direct SOL or $CATH token payments via Solana Pay
+- 📱 **Mobile Integration** - Verification codes for seamless mobile app authentication
+
+The portal acts as the source of truth for user identities, tier management, NFT pass distribution, and wallet assignments across the entire Wallet Buddhi ecosystem.
 
 ## Features
 
@@ -49,27 +81,138 @@ This is the **Wallet Buddhi Portal** - a web-based management interface where us
 
 ## Tech Stack
 
-- **Frontend**: React 18 + TypeScript + Vite
-- **Backend**: Express.js + TypeScript
-- **Blockchain**: Solana + Anchor framework
-- **Wallets**: Official Solana Wallet Adapter (Phantom, Solflare, Backpack)
-- **UI**: Shadcn UI + Tailwind CSS
-- **State**: TanStack Query (React Query)
+### Frontend
+- **Framework**: React 18 with TypeScript
+- **Build Tool**: Vite
+- **Routing**: Wouter (lightweight client-side routing)
+- **UI Library**: Shadcn UI (Radix UI primitives)
+- **Styling**: Tailwind CSS with custom design tokens
+- **State Management**: TanStack Query v5 (React Query)
+- **Forms**: React Hook Form + Zod validation
+- **Wallet Integration**: @solana/wallet-adapter-react (official)
+
+### Backend
+- **Server**: Express.js + TypeScript
+- **Runtime**: Node.js 20
+- **Storage**: In-memory (MemStorage) with PostgreSQL-ready interface
+- **ORM**: Drizzle ORM (configured for migration)
+- **Database**: Neon Serverless PostgreSQL (ready to activate)
+
+### Blockchain
+- **Network**: Solana (devnet/mainnet configurable)
+- **Smart Contracts**: Anchor framework (Rust)
+- **Wallet Support**: Phantom, Solflare, Backpack (explicit adapters)
+- **Payments**: Solana Pay protocol
+- **Tokens**: Native SOL + $CATH SPL token
+- **Name Service**: Solana Name Service (SNS) for wallet subdomains
+
+### Infrastructure
+- **Deployment**: Replit (with planned custom domain)
+- **Domain Management**: Squads multisig for root domain control
+- **Session Management**: Express-session (prepared for activation)
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20.x or higher
+- npm or yarn package manager
+- (Optional) Solana CLI for smart contract deployment
+- (Optional) Rust + Anchor for smart contract development
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/wallet-buddhi-portal.git
+   cd wallet-buddhi-portal
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set environment variables** (optional)
+   ```bash
+   # Create .env file (optional - defaults work fine)
+   echo "SOLANA_NETWORK=devnet" > .env
+   echo "VITE_SOLANA_NETWORK=devnet" >> .env
+   ```
+
+4. **Start development server**
+   ```bash
+   npm run dev
+   ```
+
+5. **Access the portal**
+   - Open http://localhost:5000 in your browser
+   - Connect a Solana wallet (Phantom, Solflare, or Backpack)
+
+### Available Scripts
+
+```bash
+npm run dev      # Start development server (frontend + backend)
+npm run build    # Build for production
+npm run start    # Start production server
+npm run check    # TypeScript type checking
+npm run db:push  # Sync database schema (when DB is configured)
+```
 
 ## Project Structure
 
 ```
-├── client/              # React frontend
+wallet-buddhi-portal/
+├── client/                          # React frontend application
 │   ├── src/
-│   │   ├── pages/      # Home, Dashboard, FAQ, etc.
-│   │   ├── components/ # Reusable UI components
-│   │   └── lib/        # Wallet context, API client
-├── server/             # Express backend
-│   ├── routes.ts       # API endpoints
-│   └── program-service.ts  # Solana program integration
-├── programs/           # Solana smart contracts (Anchor)
-│   └── wallet-buddhi/  # Tier management contract
-└── shared/             # Shared types between client/server
+│   │   ├── pages/                  # Route pages
+│   │   │   ├── Home.tsx           # Landing page with hero and pricing
+│   │   │   ├── Dashboard.tsx      # User dashboard (protected)
+│   │   │   ├── GettingStarted.tsx # User onboarding guide
+│   │   │   ├── FAQ.tsx            # Frequently asked questions
+│   │   │   ├── Security.tsx       # Security best practices
+│   │   │   └── NotFound.tsx       # 404 error page
+│   │   ├── components/            # Reusable UI components
+│   │   │   ├── ui/               # Shadcn UI primitives
+│   │   │   ├── Header.tsx        # Navigation header
+│   │   │   ├── Footer.tsx        # Site footer
+│   │   │   ├── WalletButton-new.tsx  # Wallet connection button
+│   │   │   └── TierBadge.tsx     # Tier display badge
+│   │   ├── lib/                  # Core utilities
+│   │   │   ├── SolanaProvider.tsx    # Wallet adapter provider
+│   │   │   ├── wallet-context-new.tsx # Wallet state management
+│   │   │   ├── program-client.ts     # Smart contract client
+│   │   │   └── queryClient.ts        # TanStack Query config
+│   │   ├── App.tsx               # Root component with routes
+│   │   └── main.tsx              # React entry point
+│   └── index.html                # HTML template
+│
+├── server/                         # Express backend API
+│   ├── index.ts                   # Server entry point
+│   ├── routes.ts                  # API route handlers
+│   ├── storage.ts                 # Storage interface + in-memory impl
+│   ├── payments.ts                # Solana Pay integration
+│   ├── program-service.ts         # Smart contract service
+│   └── vite.ts                    # Vite dev server integration
+│
+├── programs/                      # Solana smart contracts (Anchor)
+│   └── wallet-buddhi/
+│       └── src/
+│           └── lib.rs            # Tier management contract (Rust)
+│
+├── shared/                        # Shared TypeScript types
+│   └── schema.ts                 # Database schema + Zod validators
+│
+├── attached_assets/              # Static assets
+│   └── [logos, banners, etc.]
+│
+├── package.json                  # Node.js dependencies
+├── tsconfig.json                 # TypeScript configuration
+├── vite.config.ts               # Vite build configuration
+├── tailwind.config.ts           # Tailwind CSS configuration
+├── drizzle.config.ts            # Drizzle ORM configuration
+├── Anchor.toml                  # Anchor framework config
+└── README.md                    # This file
 ```
 
 ## Development
