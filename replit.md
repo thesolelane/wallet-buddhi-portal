@@ -2,21 +2,21 @@
 
 ## Overview
 
-Wallet Buddhi is a tiered Solana wallet protection system featuring AI-powered threat detection and automated arbitrage bots. This is the fully decentralized web portal version that provides comprehensive wallet security and DeFi automation tools for crypto-native users.
+Wallet Buddhi is the central management portal for a tiered Solana wallet protection system. This is where the magic happens - custom wallet assignment, tier upgrades, and arbitrage wallet management for Solana users.
 
-**Key Features:**
-- Three-tier subscription model (Basic, Pro, Pro+)
-- Real-time transaction monitoring and threat detection
-- AI-powered risk scoring via Deep3 Labs integration
-- Automated arbitrage bots for Solana DEXs
-- On-chain payments using SOL or $CATH tokens
-- Progressive Web App (PWA) with planned Electron distribution
+**Portal Functions:**
+- **Custom Wallet Assignment**: Users get personalized Solana Name Service subdomains (xxxx.wbuddhi.sol)
+- **Tier Management**: Upgrades registered and managed on-chain (Basic → Pro → Pro+)
+- **Arbitrage Wallet Assignment**: Pro+ users receive dedicated arbitrage bot wallets
+- **Real-time Monitoring**: Transaction monitoring and threat detection
+- **AI-Powered Security**: Risk scoring via Deep3 Labs integration (Pro/Pro+ tiers)
+- **On-chain Payments**: SOL or $CATH token payments for tier upgrades
 
 **Target Audience:** Solana ecosystem users with wallets like Phantom, Solflare, and Backpack
 
 **Domains:**
-- Main website: wbuddhi.cooperanth.sol (Solana Name Service)
-- User wallet distribution: wbuddhi.sol
+- Main portal: wbuddhi.cooperanth.sol (Solana Name Service)
+- User wallet distribution: wbuddhi.sol (custom subdomains: xxxx.wbuddhi.sol)
 
 ## User Preferences
 
