@@ -68,6 +68,7 @@ The portal acts as the source of truth for user identities, tier management, NFT
 ✅ **Arbitrage Bots** - Automated trading across Solana DEXs (Pro+ tier)  
 ✅ **Mobile App Integration** - Verification codes for app downloads  
 ✅ **NFT Pass Management** - On-chain tier verification tokens  
+✅ **Upgrade Capsules** - NFT-based software upgrades with burn-to-earn rewards  
 
 ## Domains
 
@@ -611,8 +612,156 @@ chore: maintenance tasks
 - [ ] Arbitrage bot assignment (Pro+ tier)
 - [ ] Real-time transaction monitoring
 - [ ] NFT pass minting for tier verification
+- [ ] Upgrade Capsules system (NFT-based software upgrades)
 - [ ] Advanced analytics dashboard
 - [ ] Multi-language support
+
+## Upgrade Capsules System
+
+### Overview
+
+**Upgrade Capsules** are NFTs that unlock new app features and versions. When users "unwrap" (burn) these certificates, they receive software upgrades and earn rewards based on their holdings.
+
+### How It Works
+
+1. **Receive Capsule NFT**
+   - Distributed to eligible users (tier-based, campaigns, milestones)
+   - Contains version info (e.g., "Upgrade v2", "Feature Pack Pro+")
+   - Metadata includes features, rewards, and eligibility requirements
+
+2. **Unwrap/Burn Capsule**
+   - User burns NFT through portal or mobile app
+   - Smart contract validates authenticity
+   - Upgrade data unlocked and synced to app
+   - Certificate recorded in Upgrade Vault (not destroyed, kept for audit)
+
+3. **Earn Rewards**
+   - Instant payout based on percentage of user's holdings
+   - Calculated from snapshot of SOL + $CATH balances
+   - Reward percentage defined in capsule metadata
+   - Anti-gaming measures: cool-down periods, minimum holding duration
+
+4. **App Upgrade**
+   - New features unlock automatically
+   - Upgrade manifest downloaded from IPFS/Arweave
+   - Version state recorded on-chain
+   - Cannot redeem same capsule twice
+
+### Naming & Types
+
+**Upgrade Capsules** (primary name) can include:
+- **Version Capsules**: "v2.0 Upgrade Capsule"
+- **Feature Capsules**: "Pro+ Trading Bot Capsule"
+- **Event Capsules**: "Early Adopter Capsule"
+- **Bonus Capsules**: "Loyalty Reward Capsule"
+
+### Technical Architecture
+
+**Smart Contracts:**
+- `UpgradeRegistry` - Stores authorized capsule definitions
+- `UpgradeVault` - Tracks wallet upgrade state, prevents duplicates
+- `RewardEscrow` - Manages reward distribution (multisig controlled)
+
+**Capsule Metadata (stored on IPFS/Arweave):**
+```json
+{
+  "name": "Wallet Buddhi v2.0 Upgrade Capsule",
+  "version": "2.0.0",
+  "features": [
+    "advanced-analytics",
+    "multi-wallet-support",
+    "enhanced-security-dashboard"
+  ],
+  "manifestURI": "ipfs://Qm...",
+  "eligibility": {
+    "minTier": "pro",
+    "minHoldingDuration": 30
+  },
+  "rewards": {
+    "percentage": 2.5,
+    "assetTypes": ["SOL", "CATH"],
+    "maxReward": 100
+  },
+  "expiresAt": "2025-12-31T23:59:59Z"
+}
+```
+
+**Burn-to-Upgrade Flow:**
+1. User initiates burn via portal/app
+2. Portal calls Upgrade Vault program
+3. Vault validates capsule authenticity (registry signature)
+4. Marks capsule as redeemed (single-use protection)
+5. Calculates reward from holdings snapshot
+6. Distributes rewards from escrow
+7. Emits upgrade event with manifest URI
+8. App downloads and caches upgrade data
+
+### Security Features
+
+✅ **Registry Signatures** - Only capsules signed by multisig are valid  
+✅ **Single-Use Enforcement** - UpgradeVault prevents duplicate redemptions  
+✅ **Anti-Sybil Protection** - Minimum holding duration requirements  
+✅ **Reward Caps** - Maximum reward limits prevent exploitation  
+✅ **Cool-Down Periods** - Time delays between redemptions  
+✅ **Audit Trail** - Burned capsules kept in vault for compliance  
+
+### Distribution Strategy
+
+**Who Receives Capsules:**
+- Pro/Pro+ tier users (priority access)
+- Early adopters and beta testers
+- Campaign participants
+- Community milestones (e.g., 10,000 users)
+- Staking/loyalty programs
+
+**Minting Method:**
+- Compressed NFTs for scalability
+- Candy Machine or programmable drops
+- Controlled by Squads multisig
+- Batch minting for campaigns
+
+### Reward Calculation
+
+**Holdings Snapshot:**
+```typescript
+// Example reward calculation
+const solBalance = await getSOLBalance(wallet);
+const cathBalance = await getCATHBalance(wallet);
+const totalValue = (solBalance * solPrice) + (cathBalance * cathPrice);
+
+const rewardPercentage = capsule.rewards.percentage; // e.g., 2.5%
+const rawReward = totalValue * (rewardPercentage / 100);
+const finalReward = Math.min(rawReward, capsule.rewards.maxReward);
+```
+
+**Reward Distribution:**
+- Paid in $CATH tokens
+- Sourced from multisig-controlled escrow
+- Instant payout upon successful burn
+- Transaction recorded on-chain
+
+### User Benefits
+
+🎁 **Instant Upgrades** - New features unlock immediately  
+💰 **Earn While Upgrading** - Get rewarded for staying current  
+🔒 **Verified Authenticity** - On-chain proof of legitimate software  
+📈 **Holder Incentives** - Rewards scale with portfolio size  
+🎯 **Exclusive Access** - Early feature releases for engaged users  
+
+### Example Scenarios
+
+**Scenario 1: Pro User with 100 SOL + 5,000 $CATH**
+- Receives "v2.0 Upgrade Capsule" (2.5% reward)
+- Burns capsule → Unlocks v2.0 features
+- Portfolio value: $15,000 (example)
+- Reward: $375 in $CATH (2.5% of $15,000)
+- Features unlocked: Advanced analytics, multi-wallet support
+
+**Scenario 2: Pro+ User - Early Adopter Bonus**
+- Receives "Early Adopter Capsule" (5% reward)
+- Burns within 30 days → Higher reward percentage
+- Gets commemorative "Genesis User" badge NFT
+- Priority access to future capsules
 
 ## Troubleshooting
 
