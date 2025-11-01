@@ -4,7 +4,9 @@ import {
   type WalletAccount,
   type InsertWalletAccount,
   type PaymentTransaction,
-  type InsertPaymentTransaction
+  type InsertPaymentTransaction,
+  type VerificationCode,
+  type InsertVerificationCode
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -23,17 +25,27 @@ export interface IStorage {
     referenceKey: string, 
     updates: Partial<PaymentTransaction>
   ): Promise<PaymentTransaction | undefined>;
+  
+  getVerificationCode(code: string): Promise<VerificationCode | undefined>;
+  getVerificationCodesByWallet(walletAddress: string): Promise<VerificationCode[]>;
+  createVerificationCode(verificationCode: InsertVerificationCode): Promise<VerificationCode>;
+  updateVerificationCode(
+    code: string,
+    updates: Partial<VerificationCode>
+  ): Promise<VerificationCode | undefined>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private walletAccounts: Map<string, WalletAccount>;
   private paymentTransactions: Map<string, PaymentTransaction>;
+  private verificationCodes: Map<string, VerificationCode>;
 
   constructor() {
     this.users = new Map();
     this.walletAccounts = new Map();
     this.paymentTransactions = new Map();
+    this.verificationCodes = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -104,6 +116,41 @@ export class MemStorage implements IStorage {
 
     const updated = { ...transaction, ...updates };
     this.paymentTransactions.set(referenceKey, updated);
+    return updated;
+  }
+
+  async getVerificationCode(code: string): Promise<VerificationCode | undefined> {
+    return this.verificationCodes.get(code);
+  }
+
+  async getVerificationCodesByWallet(walletAddress: string): Promise<VerificationCode[]> {
+    return Array.from(this.verificationCodes.values()).filter(
+      (vc) => vc.walletAddress === walletAddress
+    );
+  }
+
+  async createVerificationCode(insertCode: InsertVerificationCode): Promise<VerificationCode> {
+    const id = randomUUID();
+    const verificationCode: VerificationCode = {
+      ...insertCode,
+      id,
+      createdAt: new Date(),
+      usedAt: null,
+      status: insertCode.status || "pending"
+    };
+    this.verificationCodes.set(insertCode.code, verificationCode);
+    return verificationCode;
+  }
+
+  async updateVerificationCode(
+    code: string,
+    updates: Partial<VerificationCode>
+  ): Promise<VerificationCode | undefined> {
+    const verificationCode = this.verificationCodes.get(code);
+    if (!verificationCode) return undefined;
+
+    const updated = { ...verificationCode, ...updates };
+    this.verificationCodes.set(code, updated);
     return updated;
   }
 }
