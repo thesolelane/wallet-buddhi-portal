@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import GettingStarted from "@/pages/GettingStarted";
 import FAQ from "@/pages/FAQ";
 import Security from "@/pages/Security";
+import Token from "@/pages/Token";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/getting-started" component={GettingStarted} />
       <Route path="/faq" component={FAQ} />
       <Route path="/security" component={Security} />
+      <Route path="/token/:ca" component={Token} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -3,7 +3,10 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { solanaPaymentService } from "./payments";
 import { programService } from "./program-service";
+import { getTokenMetadata } from "./token-service";
 import { z } from "zod";
+
+const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 const createPaymentRequestSchema = z.object({
   walletAddress: z.string(),
@@ -204,6 +207,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching payment status:", error);
       return res.status(500).json({ 
         error: "Failed to fetch payment status" 
+      });
+    }
+  });
+
+  // --- Phase A: token metadata ---
+  app.get("/api/token/:ca", async (req, res) => {
+    try {
+      const { ca } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(ca)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const meta = await getTokenMetadata(ca);
+      return res.json(meta);
+    } catch (error) {
+      console.error("Error fetching token metadata:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to fetch token metadata",
       });
     }
   });
