@@ -18,6 +18,8 @@ export interface TokenMetadata {
   freezeAuthority: string | null;
   mintAuthorityRenounced: boolean;
   freezeAuthorityRenounced: boolean;
+  updateAuthority: string | null; // Metaplex update authority — often the deployer/dev
+  creators: Array<{ address: string; share: number; verified: boolean }>;
   socials: {
     website: string | null;
     twitter: string | null;
@@ -105,6 +107,22 @@ export async function getTokenMetadata(ca: string): Promise<TokenMetadata> {
   const mintAuth = hToken?.mint_authority ?? null;
   const freezeAuth = hToken?.freeze_authority ?? null;
 
+  // Update authority — first entry in authorities[] with scopes including "full"
+  // or just the first one (Metaplex convention).
+  const authList = Array.isArray(hAuth) ? hAuth : [];
+  const updateAuth =
+    authList.find((a: any) => Array.isArray(a?.scopes) && a.scopes.includes("full"))?.address ??
+    authList[0]?.address ??
+    null;
+
+  const creators = Array.isArray(h?.creators)
+    ? h.creators.map((c: any) => ({
+        address: c.address,
+        share: c.share ?? 0,
+        verified: !!c.verified,
+      }))
+    : [];
+
   const pair = pickBestPair(dex.data?.pairs);
   const dexInfo = pair?.info;
 
@@ -135,6 +153,8 @@ export async function getTokenMetadata(ca: string): Promise<TokenMetadata> {
     freezeAuthority: freezeAuth,
     mintAuthorityRenounced: mintAuth === null,
     freezeAuthorityRenounced: freezeAuth === null,
+    updateAuthority: updateAuth,
+    creators,
     socials,
     pair: pair
       ? {

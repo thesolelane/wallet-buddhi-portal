@@ -5,7 +5,7 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot } from "lucide-react";
+import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot, Activity } from "lucide-react";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
 
 interface BumpWallet {
@@ -96,6 +96,8 @@ interface TokenMetadata {
   freezeAuthority: string | null;
   mintAuthorityRenounced: boolean;
   freezeAuthorityRenounced: boolean;
+  updateAuthority: string | null;
+  creators: Array<{ address: string; share: number; verified: boolean }>;
   socials: {
     website: string | null;
     twitter: string | null;
@@ -245,6 +247,9 @@ export default function Token() {
               </CardContent>
             </Card>
 
+            {/* Health pills — synthesize all signals at the top */}
+            <HealthPills data={data} holders={holders} buyers={buyers} bump={bump} />
+
             {/* State cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Authority status */}
@@ -265,6 +270,18 @@ export default function Token() {
                     renounced={data.freezeAuthorityRenounced}
                     holder={data.freezeAuthority}
                   />
+                  {data.updateAuthority && (
+                    <div className="flex items-center justify-between text-sm pt-2 border-t border-border">
+                      <span className="text-muted-foreground">Update authority</span>
+                      <button
+                        onClick={() => copy(data.updateAuthority!)}
+                        className="font-mono text-xs hover:text-foreground"
+                        title={`Likely deployer\n${data.updateAuthority}\nClick to copy`}
+                      >
+                        {shorten(data.updateAuthority)} 👤
+                      </button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -528,6 +545,136 @@ function CohortGrid({ buyers }: { buyers: CohortBuyer[] }) {
         );
       })}
     </div>
+  );
+}
+
+function HealthPills({
+  data,
+  holders,
+  buyers,
+  bump,
+}: {
+  data: TokenMetadata;
+  holders?: HoldersResult;
+  buyers?: BuyersResult;
+  bump?: BumpReport;
+}) {
+  const pills: Array<{ tone: "green" | "yellow" | "red" | "gray"; text: string; title?: string }> = [];
+
+  // Authority
+  if (data.mintAuthorityRenounced && data.freezeAuthorityRenounced) {
+    pills.push({ tone: "green", text: "✓ Authorities renounced" });
+  } else if (data.mintAuthorityRenounced || data.freezeAuthorityRenounced) {
+    pills.push({
+      tone: "yellow",
+      text: `⚠ ${!data.mintAuthorityRenounced ? "Mint" : "Freeze"} authority live`,
+    });
+  } else {
+    pills.push({ tone: "red", text: "✗ Both authorities live — mint/freeze risk" });
+  }
+
+  // Dev wallet still holding
+  if (data.updateAuthority && holders?.ok) {
+    const devHolder = holders.holders.find((h) => h.owner === data.updateAuthority);
+    if (devHolder && (devHolder.pctOfSupply ?? 0) > 5) {
+      pills.push({
+        tone: "red",
+        text: `⚠ Dev holds ${devHolder.pctOfSupply!.toFixed(1)}% of supply`,
+        title: `Update authority ${data.updateAuthority} still in top holders`,
+      });
+    } else if (devHolder) {
+      pills.push({
+        tone: "yellow",
+        text: `Dev still holds ${(devHolder.pctOfSupply ?? 0).toFixed(2)}%`,
+      });
+    } else {
+      pills.push({ tone: "green", text: "Dev wallet exited top holders" });
+    }
+  }
+
+  // Top-holder concentration
+  if (holders?.ok) {
+    const top10Pct = holders.holders.slice(0, 10).reduce((s, h) => s + (h.pctOfSupply ?? 0), 0);
+    if (top10Pct > 50) {
+      pills.push({ tone: "red", text: `⚠ Top 10 hold ${top10Pct.toFixed(0)}% — concentrated` });
+    } else if (top10Pct > 30) {
+      pills.push({ tone: "yellow", text: `Top 10 hold ${top10Pct.toFixed(0)}%` });
+    } else {
+      pills.push({ tone: "green", text: `Top 10 hold ${top10Pct.toFixed(0)}% — distributed` });
+    }
+  }
+
+  // Cohort hold rate (first 200)
+  if (buyers?.ok && buyers.stats && buyers.stats.total > 0) {
+    const holdPct = (buyers.stats.stillHolding / buyers.stats.total) * 100;
+    if (holdPct >= 40) {
+      pills.push({ tone: "green", text: `${holdPct.toFixed(0)}% of early buyers holding` });
+    } else if (holdPct >= 15) {
+      pills.push({ tone: "yellow", text: `${holdPct.toFixed(0)}% of early buyers holding` });
+    } else {
+      pills.push({ tone: "red", text: `Only ${holdPct.toFixed(0)}% of early buyers left` });
+    }
+  }
+
+  // Snipers
+  if (buyers?.ok && buyers.stats) {
+    const s = buyers.stats.snipers;
+    if (s === 0) {
+      pills.push({ tone: "green", text: "No sniper activity" });
+    } else if (s < 10) {
+      pills.push({ tone: "yellow", text: `⚡ ${s} snipers in first 100` });
+    } else {
+      pills.push({ tone: "red", text: `⚡ ${s} snipers in first 100 — heavy` });
+    }
+  }
+
+  // Bump bots
+  if (bump?.ok) {
+    const n = bump.suspectWallets.length;
+    if (n === 0) {
+      pills.push({ tone: "green", text: "Volume looks organic" });
+    } else if (n < 3) {
+      pills.push({ tone: "yellow", text: `🤖 ${n} bump-bot wallets` });
+    } else {
+      pills.push({
+        tone: "red",
+        text: `🤖 ${n} bump bots — ${bump.totalFeesBurnedSol.toFixed(2)} SOL burned`,
+      });
+    }
+  }
+
+  const toneClasses: Record<typeof pills[number]["tone"], string> = {
+    green: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/30",
+    yellow: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30",
+    red: "bg-destructive/10 text-destructive border-destructive/30",
+    gray: "bg-muted text-muted-foreground border-border",
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <Activity className="w-4 h-4" />
+          Health Signals
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2">
+          {pills.map((p, i) => (
+            <span
+              key={i}
+              title={p.title}
+              className={`text-xs px-2.5 py-1 rounded-full border ${toneClasses[p.tone]}`}
+            >
+              {p.text}
+            </span>
+          ))}
+          {pills.length === 0 && (
+            <span className="text-xs text-muted-foreground">Loading signals…</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
