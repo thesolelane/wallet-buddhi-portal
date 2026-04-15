@@ -5,8 +5,32 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users } from "lucide-react";
+import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3 } from "lucide-react";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
+
+interface CohortBuyer {
+  rank: number;
+  wallet: string;
+  signature: string;
+  timestamp: number;
+  quoteMint: string;
+  quoteSymbol: "SOL" | "USDC" | "USDT" | "other";
+  quoteAmount: number;
+  tokenAmount: number;
+  source: string;
+  state: "holding" | "exited";
+}
+
+interface BuyersResult {
+  ca: string;
+  buyers: CohortBuyer[];
+  scannedTxs: number;
+  hitLimit: boolean;
+  fetchedAt: number;
+  ok: boolean;
+  reason?: string;
+  stats?: { total: number; stillHolding: number; exited: number };
+}
 
 interface Holder {
   rank: number;
@@ -112,6 +136,11 @@ export default function Token() {
 
   const { data: holders, isLoading: holdersLoading } = useQuery<HoldersResult>({
     queryKey: [`/api/token/${ca}/holders`],
+    enabled: !!ca,
+  });
+
+  const { data: buyers, isLoading: buyersLoading } = useQuery<BuyersResult>({
+    queryKey: [`/api/token/${ca}/buyers`],
     enabled: !!ca,
   });
 
@@ -248,6 +277,57 @@ export default function Token() {
               />
             </div>
 
+            {/* First-200 Buyer Cohort */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Grid3x3 className="w-4 h-4" />
+                  First {buyers?.buyers?.length ?? 200} Buyers
+                  {buyers?.ok && buyers.stats && (
+                    <span className="text-xs font-normal ml-auto flex gap-3">
+                      <span className="text-green-500">
+                        {buyers.stats.stillHolding} holding
+                      </span>
+                      <span className="text-muted-foreground">
+                        {buyers.stats.exited} exited
+                      </span>
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {buyersLoading && (
+                  <div>
+                    <Skeleton className="h-40 w-full" />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Scanning tx history — first load may take 30–60s…
+                    </p>
+                  </div>
+                )}
+                {buyers && !buyers.ok && (
+                  <p className="text-sm text-muted-foreground">
+                    Unable to load cohort: {buyers.reason}
+                  </p>
+                )}
+                {buyers?.ok && buyers.buyers.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No swap txs found in recent history.
+                  </p>
+                )}
+                {buyers?.ok && buyers.buyers.length > 0 && (
+                  <>
+                    <CohortGrid buyers={buyers.buyers} />
+                    <p className="text-xs text-muted-foreground mt-3">
+                      Green = still in top holders · Gray = exited ·{" "}
+                      Hover for wallet + buy amount ·{" "}
+                      Scanned {buyers.scannedTxs} txs
+                      {buyers.hitLimit && " (hit page cap — may be incomplete)"}
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Top Holders */}
             <Card>
               <CardHeader>
@@ -319,6 +399,31 @@ export default function Token() {
         )}
       </main>
       <Footer />
+    </div>
+  );
+}
+
+function CohortGrid({ buyers }: { buyers: CohortBuyer[] }) {
+  return (
+    <div className="grid grid-cols-10 sm:grid-cols-20 gap-1" style={{ gridTemplateColumns: "repeat(20, minmax(0, 1fr))" }}>
+      {buyers.map((b) => {
+        const tone =
+          b.state === "holding" ? "bg-green-500/70 hover:bg-green-500" : "bg-muted-foreground/30 hover:bg-muted-foreground/60";
+        const qty =
+          b.quoteAmount > 0
+            ? `${b.quoteAmount.toFixed(b.quoteSymbol === "SOL" ? 3 : 2)} ${b.quoteSymbol}`
+            : "—";
+        const title = `#${b.rank} ${b.wallet.slice(0, 4)}…${b.wallet.slice(-4)}\nBought: ${qty}\nSource: ${b.source}\n${b.state}`;
+        return (
+          <button
+            key={b.wallet + b.signature}
+            title={title}
+            onClick={() => copy(b.wallet)}
+            className={`aspect-square rounded-sm ${tone} transition-colors`}
+            aria-label={title}
+          />
+        );
+      })}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { solanaPaymentService } from "./payments";
 import { programService } from "./program-service";
 import { getTokenMetadata } from "./token-service";
 import { getTopHolders } from "./holders-service";
+import { getFirstBuyers, classifyCohort } from "./buyers-service";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
 
@@ -237,6 +238,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Ollama complete error:", error);
       return res.status(500).json({
         error: error instanceof Error ? error.message : "LLM call failed",
+      });
+    }
+  });
+
+  // --- Phase B.2: first-200 buyers cohort (on-demand, cached 10min) ---
+  app.get("/api/token/:ca/buyers", async (req, res) => {
+    try {
+      const { ca } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(ca)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const limit = Math.min(parseInt(String(req.query.limit ?? "200"), 10) || 200, 500);
+
+      // Fetch buyers + current holders in parallel so we can overlay cohort state
+      const [buyersResult, holdersResult] = await Promise.all([
+        getFirstBuyers(ca, limit),
+        getTopHolders(ca, 10_000),
+      ]);
+
+      const holderSet = new Set(holdersResult.holders.map((h) => h.owner));
+      const cohort = classifyCohort(buyersResult.buyers, holderSet);
+
+      return res.json({
+        ...buyersResult,
+        buyers: cohort,
+        stats: {
+          total: cohort.length,
+          stillHolding: cohort.filter((c) => c.state === "holding").length,
+          exited: cohort.filter((c) => c.state === "exited").length,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching buyers:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to fetch buyers",
       });
     }
   });
