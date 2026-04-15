@@ -5,8 +5,27 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle } from "lucide-react";
+import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users } from "lucide-react";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
+
+interface Holder {
+  rank: number;
+  owner: string;
+  amount: string;
+  uiAmount: number;
+  pctOfSupply: number | null;
+}
+
+interface HoldersResult {
+  ca: string;
+  decimals: number | null;
+  supply: string | null;
+  totalAccountsScanned: number;
+  holders: Holder[];
+  fetchedAt: number;
+  ok: boolean;
+  reason?: string;
+}
 
 interface TokenMetadata {
   ca: string;
@@ -88,6 +107,11 @@ export default function Token() {
 
   const { data, isLoading, error } = useQuery<TokenMetadata>({
     queryKey: [`/api/token/${ca}`],
+    enabled: !!ca,
+  });
+
+  const { data: holders, isLoading: holdersLoading } = useQuery<HoldersResult>({
+    queryKey: [`/api/token/${ca}/holders`],
     enabled: !!ca,
   });
 
@@ -224,6 +248,39 @@ export default function Token() {
               />
             </div>
 
+            {/* Top Holders */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Top 50 Holders
+                  {holders?.ok && (
+                    <span className="text-xs font-normal ml-auto">
+                      {holders.totalAccountsScanned} total accounts
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {holdersLoading && <Skeleton className="h-60 w-full" />}
+                {holders && !holders.ok && (
+                  <p className="text-sm text-muted-foreground">
+                    Unable to load holders: {holders.reason}
+                  </p>
+                )}
+                {holders?.ok && holders.holders.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No holders found.</p>
+                )}
+                {holders?.ok && holders.holders.length > 0 && (
+                  <div className="space-y-1">
+                    {holders.holders.map((h) => (
+                      <HolderRow key={h.owner} h={h} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Socials */}
             <Card>
               <CardHeader>
@@ -262,6 +319,35 @@ export default function Token() {
         )}
       </main>
       <Footer />
+    </div>
+  );
+}
+
+function HolderRow({ h }: { h: Holder }) {
+  const pct = h.pctOfSupply ?? 0;
+  const barWidth = Math.min(100, pct);
+  // Color intensity: >5% concerning (whale), 1-5% notable, <1% normal
+  const barColor =
+    pct >= 5 ? "bg-destructive/70" : pct >= 1 ? "bg-orange-500/70" : "bg-primary/60";
+  return (
+    <div className="flex items-center gap-2 text-xs font-mono">
+      <span className="w-8 text-muted-foreground text-right">#{h.rank}</span>
+      <button
+        onClick={() => copy(h.owner)}
+        className="w-28 text-left hover:text-foreground truncate"
+        title={h.owner}
+      >
+        {shorten(h.owner, 4, 4)}
+      </button>
+      <div className="flex-1 h-5 bg-muted rounded-sm relative overflow-hidden">
+        <div
+          className={`absolute left-0 top-0 bottom-0 ${barColor} rounded-sm`}
+          style={{ width: `${barWidth}%` }}
+        />
+      </div>
+      <span className="w-16 text-right">
+        {h.pctOfSupply !== null ? `${h.pctOfSupply.toFixed(2)}%` : "—"}
+      </span>
     </div>
   );
 }
