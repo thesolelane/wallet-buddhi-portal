@@ -267,6 +267,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           total: cohort.length,
           stillHolding: cohort.filter((c) => c.state === "holding").length,
           exited: cohort.filter((c) => c.state === "exited").length,
+          snipers: cohort.filter((c) => c.isSniper).length,
+          snipersHolding: cohort.filter((c) => c.isSniper && c.state === "holding").length,
+          totalJitoTipSol: cohort.reduce((s, c) => s + c.jitoTipSol, 0),
         },
       });
     } catch (error) {

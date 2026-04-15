@@ -13,6 +13,23 @@ const WSOL = "So11111111111111111111111111111111111111112";
 const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const USDT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
 
+// Jito tip accounts (public, well-known — tips to these = MEV/bundle priority)
+// Ref: https://docs.jito.wtf/lowlatencytxnsend/#tip-amount-and-accounts
+const JITO_TIP_ACCOUNTS = new Set([
+  "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
+  "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
+  "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
+  "ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49",
+  "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
+  "ADuUkR4vqLUMWXxW9gh6D6L8pivKeVBBXQcH5sG5LowU",
+  "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
+  "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
+]);
+
+// Sniper heuristics
+const SNIPER_COHORT_CAP = 100; // only first-100 buyers can be snipers
+const PRIORITY_FEE_SNIPER_THRESHOLD_SOL = 0.005; // >5_000_000 lamports is "paying to win"
+
 export interface Buyer {
   rank: number; // 1 = first buyer
   wallet: string;
@@ -23,6 +40,9 @@ export interface Buyer {
   quoteAmount: number; // UI amount
   tokenAmount: number; // UI amount of the token bought
   source: string; // dex source reported by Helius
+  priorityFeeSol: number; // paid priority fee in SOL
+  jitoTipSol: number; // Jito tip in SOL (0 if none)
+  isSniper: boolean; // rank<=100 && (jito tipped OR heavy priority fee)
 }
 
 export interface BuyersResult {
@@ -133,6 +153,19 @@ export async function getFirstBuyers(
           return Number(raw) / Math.pow(10, dec);
         })();
 
+        // Priority fee: Helius reports tx.fee in lamports.
+        const priorityFeeSol = Number(tx.fee ?? 0) / 1e9;
+
+        // Jito tip: any native transfer in this tx going to a known tip account
+        let jitoTipLamports = 0;
+        const natTransfers = tx.nativeTransfers ?? [];
+        for (const t of natTransfers) {
+          if (t?.toUserAccount && JITO_TIP_ACCOUNTS.has(t.toUserAccount)) {
+            jitoTipLamports += Number(t.amount ?? 0);
+          }
+        }
+        const jitoTipSol = jitoTipLamports / 1e9;
+
         allBuys.push({
           rank: 0, // filled in after sort
           wallet: buyer,
@@ -143,6 +176,9 @@ export async function getFirstBuyers(
           quoteAmount,
           tokenAmount,
           source: tx.source || "unknown",
+          priorityFeeSol,
+          jitoTipSol,
+          isSniper: false, // computed after rank is assigned
         });
       }
 
@@ -164,7 +200,12 @@ export async function getFirstBuyers(
       firstBuys.push(b);
       if (firstBuys.length >= limit) break;
     }
-    firstBuys.forEach((b, i) => (b.rank = i + 1));
+    firstBuys.forEach((b, i) => {
+      b.rank = i + 1;
+      b.isSniper =
+        b.rank <= SNIPER_COHORT_CAP &&
+        (b.jitoTipSol > 0 || b.priorityFeeSol > PRIORITY_FEE_SNIPER_THRESHOLD_SOL);
+    });
 
     const result: BuyersResult = {
       ca,

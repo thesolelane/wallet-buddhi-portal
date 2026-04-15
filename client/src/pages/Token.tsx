@@ -18,6 +18,9 @@ interface CohortBuyer {
   quoteAmount: number;
   tokenAmount: number;
   source: string;
+  priorityFeeSol: number;
+  jitoTipSol: number;
+  isSniper: boolean;
   state: "holding" | "exited";
 }
 
@@ -29,7 +32,14 @@ interface BuyersResult {
   fetchedAt: number;
   ok: boolean;
   reason?: string;
-  stats?: { total: number; stillHolding: number; exited: number };
+  stats?: {
+    total: number;
+    stillHolding: number;
+    exited: number;
+    snipers: number;
+    snipersHolding: number;
+    totalJitoTipSol: number;
+  };
 }
 
 interface Holder {
@@ -291,6 +301,11 @@ export default function Token() {
                       <span className="text-muted-foreground">
                         {buyers.stats.exited} exited
                       </span>
+                      {buyers.stats.snipers > 0 && (
+                        <span className="text-orange-500" title="Used Jito tip or heavy priority fee in first 100">
+                          ⚡ {buyers.stats.snipers} snipers
+                        </span>
+                      )}
                     </span>
                   )}
                 </CardTitle>
@@ -318,9 +333,14 @@ export default function Token() {
                   <>
                     <CohortGrid buyers={buyers.buyers} />
                     <p className="text-xs text-muted-foreground mt-3">
-                      Green = still in top holders · Gray = exited ·{" "}
-                      Hover for wallet + buy amount ·{" "}
-                      Scanned {buyers.scannedTxs} txs
+                      Green = still holding · Gray = exited · Orange ring = sniper
+                      {" (Jito-tipped or high priority fee in first 100)"}
+                      {buyers.stats && buyers.stats.totalJitoTipSol > 0 && (
+                        <>
+                          {" · "}Cohort paid {buyers.stats.totalJitoTipSol.toFixed(3)} SOL in Jito tips
+                        </>
+                      )}
+                      {" · "}Scanned {buyers.scannedTxs} txs
                       {buyers.hitLimit && " (hit page cap — may be incomplete)"}
                     </p>
                   </>
@@ -405,21 +425,29 @@ export default function Token() {
 
 function CohortGrid({ buyers }: { buyers: CohortBuyer[] }) {
   return (
-    <div className="grid grid-cols-10 sm:grid-cols-20 gap-1" style={{ gridTemplateColumns: "repeat(20, minmax(0, 1fr))" }}>
+    <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(20, minmax(0, 1fr))" }}>
       {buyers.map((b) => {
         const tone =
-          b.state === "holding" ? "bg-green-500/70 hover:bg-green-500" : "bg-muted-foreground/30 hover:bg-muted-foreground/60";
+          b.state === "holding"
+            ? "bg-green-500/70 hover:bg-green-500"
+            : "bg-muted-foreground/30 hover:bg-muted-foreground/60";
+        const sniperRing = b.isSniper ? "ring-2 ring-orange-500" : "";
         const qty =
           b.quoteAmount > 0
             ? `${b.quoteAmount.toFixed(b.quoteSymbol === "SOL" ? 3 : 2)} ${b.quoteSymbol}`
             : "—";
-        const title = `#${b.rank} ${b.wallet.slice(0, 4)}…${b.wallet.slice(-4)}\nBought: ${qty}\nSource: ${b.source}\n${b.state}`;
+        const sniperLine = b.isSniper
+          ? `\n⚡ SNIPER — priority fee ${b.priorityFeeSol.toFixed(4)} SOL${
+              b.jitoTipSol > 0 ? `, Jito tip ${b.jitoTipSol.toFixed(4)} SOL` : ""
+            }`
+          : "";
+        const title = `#${b.rank} ${b.wallet.slice(0, 4)}…${b.wallet.slice(-4)}\nBought: ${qty}\nSource: ${b.source}\n${b.state}${sniperLine}`;
         return (
           <button
             key={b.wallet + b.signature}
             title={title}
             onClick={() => copy(b.wallet)}
-            className={`aspect-square rounded-sm ${tone} transition-colors`}
+            className={`aspect-square rounded-sm ${tone} ${sniperRing} transition-colors`}
             aria-label={title}
           />
         );
