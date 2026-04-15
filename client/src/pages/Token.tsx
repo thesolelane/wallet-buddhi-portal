@@ -5,8 +5,31 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3 } from "lucide-react";
+import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot } from "lucide-react";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
+
+interface BumpWallet {
+  wallet: string;
+  buys: number;
+  sells: number;
+  firstSeen: number;
+  lastSeen: number;
+  medianBuySol: number;
+  medianSellSol: number;
+  totalFeesSol: number;
+  balanceRatio: number;
+}
+
+interface BumpReport {
+  ca: string;
+  scannedTxs: number;
+  suspectWallets: BumpWallet[];
+  totalFeesBurnedSol: number;
+  activeLast24h: boolean;
+  fetchedAt: number;
+  ok: boolean;
+  reason?: string;
+}
 
 interface CohortBuyer {
   rank: number;
@@ -151,6 +174,11 @@ export default function Token() {
 
   const { data: buyers, isLoading: buyersLoading } = useQuery<BuyersResult>({
     queryKey: [`/api/token/${ca}/buyers`],
+    enabled: !!ca,
+  });
+
+  const { data: bump, isLoading: bumpLoading } = useQuery<BumpReport>({
+    queryKey: [`/api/token/${ca}/bump-report`],
     enabled: !!ca,
   });
 
@@ -348,6 +376,53 @@ export default function Token() {
               </CardContent>
             </Card>
 
+            {/* Bump-bot report */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Bot className="w-4 h-4" />
+                  Bump-Bot Detector
+                  {bump?.ok && (
+                    <span className="text-xs font-normal ml-auto flex gap-3">
+                      <span className={bump.suspectWallets.length > 0 ? "text-orange-500" : "text-green-500"}>
+                        {bump.suspectWallets.length} suspect wallets
+                      </span>
+                      {bump.totalFeesBurnedSol > 0 && (
+                        <span className="text-muted-foreground">
+                          {bump.totalFeesBurnedSol.toFixed(3)} SOL burned on fees
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {bumpLoading && <Skeleton className="h-20 w-full" />}
+                {bump && !bump.ok && (
+                  <p className="text-sm text-muted-foreground">
+                    Unable to analyze: {bump.reason}
+                  </p>
+                )}
+                {bump?.ok && bump.suspectWallets.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No bump-bot patterns detected in the scanned history. Volume appears organic.
+                  </p>
+                )}
+                {bump?.ok && bump.suspectWallets.length > 0 && (
+                  <div className="space-y-1.5">
+                    {bump.suspectWallets.slice(0, 10).map((w) => (
+                      <BumpRow key={w.wallet} w={w} />
+                    ))}
+                    {bump.suspectWallets.length > 10 && (
+                      <p className="text-xs text-muted-foreground pt-1">
+                        …and {bump.suspectWallets.length - 10} more
+                      </p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Top Holders */}
             <Card>
               <CardHeader>
@@ -452,6 +527,30 @@ function CohortGrid({ buyers }: { buyers: CohortBuyer[] }) {
           />
         );
       })}
+    </div>
+  );
+}
+
+function BumpRow({ w }: { w: BumpWallet }) {
+  const roundTrips = Math.min(w.buys, w.sells);
+  return (
+    <div className="flex items-center gap-2 text-xs font-mono">
+      <button
+        onClick={() => copy(w.wallet)}
+        className="w-28 text-left hover:text-foreground truncate"
+        title={w.wallet}
+      >
+        {shorten(w.wallet, 4, 4)}
+      </button>
+      <span className="flex-1 text-muted-foreground">
+        {w.buys} buys · {w.sells} sells ({roundTrips} round trips)
+      </span>
+      <span className="w-24 text-right text-muted-foreground">
+        med {w.medianBuySol.toFixed(3)} SOL
+      </span>
+      <span className="w-20 text-right text-orange-500">
+        {w.totalFeesSol.toFixed(4)} SOL fees
+      </span>
     </div>
   );
 }

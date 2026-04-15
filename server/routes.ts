@@ -6,6 +6,7 @@ import { programService } from "./program-service";
 import { getTokenMetadata } from "./token-service";
 import { getTopHolders } from "./holders-service";
 import { getFirstBuyers, classifyCohort } from "./buyers-service";
+import { detectBumpBots } from "./bump-detector";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
 
@@ -238,6 +239,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Ollama complete error:", error);
       return res.status(500).json({
         error: error instanceof Error ? error.message : "LLM call failed",
+      });
+    }
+  });
+
+  // --- Phase E: bump-bot detector ---
+  app.get("/api/token/:ca/bump-report", async (req, res) => {
+    try {
+      const { ca } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(ca)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const result = await detectBumpBots(ca);
+      return res.json(result);
+    } catch (error) {
+      console.error("Error detecting bump bots:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to detect bump bots",
       });
     }
   });
