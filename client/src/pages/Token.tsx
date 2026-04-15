@@ -58,7 +58,8 @@ function fmtSupply(s: string | null, decimals: number | null) {
   const d = decimals ?? 0;
   try {
     const n = BigInt(s);
-    const divisor = BigInt(10) ** BigInt(d);
+    let divisor = BigInt(1);
+    for (let i = 0; i < d; i++) divisor *= BigInt(10);
     const whole = n / divisor;
     return whole.toLocaleString();
   } catch {
