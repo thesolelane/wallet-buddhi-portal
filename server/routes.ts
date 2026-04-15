@@ -5,6 +5,7 @@ import { solanaPaymentService } from "./payments";
 import { programService } from "./program-service";
 import { getTokenMetadata } from "./token-service";
 import { getTopHolders } from "./holders-service";
+import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -208,6 +209,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching payment status:", error);
       return res.status(500).json({ 
         error: "Failed to fetch payment status" 
+      });
+    }
+  });
+
+  // --- Phase G: LLM (Ollama) ---
+  app.get("/api/llm/ollama/health", async (_req, res) => {
+    const h = await ollamaProvider.health();
+    return res.json(h);
+  });
+
+  app.post("/api/llm/ollama/complete", async (req, res) => {
+    try {
+      const { model, messages, temperature, maxTokens, json } = req.body ?? {};
+      if (!model || !Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: "model and messages are required" });
+      }
+      const result = await ollamaProvider.complete({
+        model,
+        messages,
+        temperature,
+        maxTokens,
+        json,
+      });
+      return res.json(result);
+    } catch (error) {
+      console.error("Ollama complete error:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "LLM call failed",
       });
     }
   });

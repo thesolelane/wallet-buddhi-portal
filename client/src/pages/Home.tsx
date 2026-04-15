@@ -8,13 +8,27 @@ import { Footer } from "@/components/Footer";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useWallet } from "@/lib/wallet-context-new";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { Shield, Brain, Bot, Zap, Lock, TrendingUp } from "lucide-react";
+import { Shield, Brain, Bot, Zap, Lock, TrendingUp, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import type { TierType } from "@/components/TierBadge";
 
 export default function Home() {
   const [, navigate] = useLocation();
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState<"pro" | "pro_plus">("pro");
+  const [tokenQuery, setTokenQuery] = useState("");
+  const [tokenError, setTokenError] = useState<string | null>(null);
+
+  const handleTokenLookup = () => {
+    const trimmed = tokenQuery.trim();
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed)) {
+      setTokenError("Enter a valid Solana token address (CA)");
+      return;
+    }
+    setTokenError(null);
+    navigate(`/token/${trimmed}`);
+  };
   const { connected, tier, upgradeTier } = useWallet();
   const { setVisible } = useWalletModal();
 
@@ -92,6 +106,37 @@ export default function Home() {
 
       <main className="flex-1">
         <Hero onGetStarted={() => setVisible(true)} />
+
+        {/* Token lookup — Phase A entry point */}
+        <section className="py-10 border-b border-border">
+          <div className="container mx-auto px-4 md:px-8 max-w-3xl">
+            <div className="text-center mb-4">
+              <h2 className="text-xl md:text-2xl font-bold">Inspect a Token</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Paste a Solana contract address. State-first view — no price charts.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Contract address (CA)"
+                  value={tokenQuery}
+                  onChange={(e) => {
+                    setTokenQuery(e.target.value);
+                    if (tokenError) setTokenError(null);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleTokenLookup()}
+                  className="pl-9 font-mono text-sm"
+                />
+              </div>
+              <Button onClick={handleTokenLookup}>Inspect</Button>
+            </div>
+            {tokenError && (
+              <p className="text-xs text-destructive mt-2">{tokenError}</p>
+            )}
+          </div>
+        </section>
 
         <section className="py-16 md:py-24 bg-muted/30">
           <div className="container mx-auto px-4 md:px-8">
