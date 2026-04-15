@@ -12,6 +12,7 @@ import GettingStarted from "@/pages/GettingStarted";
 import FAQ from "@/pages/FAQ";
 import Security from "@/pages/Security";
 import Token from "@/pages/Token";
+import Lab from "@/pages/Lab";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/faq" component={FAQ} />
       <Route path="/security" component={Security} />
       <Route path="/token/:ca" component={Token} />
+      <Route path="/lab" component={Lab} />
       <Route component={NotFound} />
     </Switch>
   );
