@@ -1,4 +1,4 @@
-import { LayoutDashboard, BookOpen, HelpCircle, Shield } from "lucide-react";
+import { LayoutDashboard, BookOpen, HelpCircle, Shield, FlaskConical } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "./ui/button";
 import { WalletButton } from "./WalletButton-new";
@@ -55,6 +55,17 @@ export function Header() {
               >
                 <LayoutDashboard className="h-4 w-4 mr-2" />
                 Dashboard
+              </Button>
+            )}
+            {location !== "/lab" && (
+              <Button
+                variant="ghost"
+                onClick={() => navigate("/lab")}
+                data-testid="link-lab"
+                className="hover-elevate active-elevate-2"
+              >
+                <FlaskConical className="h-4 w-4 mr-2" />
+                Lab
               </Button>
             )}
             
