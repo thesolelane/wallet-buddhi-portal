@@ -128,14 +128,24 @@ Libraries planned:
 
 | Phase | Scope | Status |
 |---|---|---|
-| **A** | `/token/:ca` page — metadata only (Helius `getAsset` + DexScreener) | in progress |
-| **B** | First-200 buyers + top-50 holders, Postgres persistence, Helius webhooks | planned |
-| **C** | Sniper / bribe detection (Yellowstone + Jito) | planned |
-| **D** | Cluster engine + bubble map + dev-wallet trace | planned |
-| **E** | Bump-bot detector + "real volume" filter | planned |
-| **F** | Social layer (twitterapi.io + TGStat + sentiment LLM) | planned |
-| **G** | Ollama connector + agentic AI lab page | planned |
+| **A** | `/token/:ca` page — metadata only (Helius `getAsset` + DexScreener) | ✅ done |
+| **B.1** | Top 50 holders (Helius DAS `getTokenAccounts`, live read) | ✅ done |
+| **B.2** | First-200 buyers cohort + holding/exited classification | ✅ done (in-memory cache, 10min TTL; no DB yet) |
+| **B.3** | Postgres persistence + Helius webhooks (push model) | planned |
+| **C** | Sniper / bribe detection (Jito tip accounts + priority fee threshold) | ✅ done (parsed-tx based; Yellowstone gRPC still future) |
+| **D.1** | Dev / update authority surfacing + "dev still holds" signal | ✅ done |
+| **D.2** | Cluster engine + bubble map viz | planned |
+| **E** | Bump-bot detector + estimated fee burn | ✅ done |
+| **F** | Social layer (twitterapi.io + TGStat) | ✅ scaffolded; activates when keys set |
+| **G** | Ollama connector + `/lab` page + AI Analyst | ✅ done |
 | **H** | Telegram/Discord alerts + copy-trade automation (Pro+) | planned |
+
+### Also shipped
+- Health Pills card synthesizing all signals into single-glance status
+- Token search on Home page (enter CA → `/token/:ca`)
+- Lab page (`/lab`) for testing Ollama models interactively
+- Watchlist: localStorage-backed, surfaced on Dashboard
+- Header nav: Lab link
 
 ## Tier gating (proposed)
 
