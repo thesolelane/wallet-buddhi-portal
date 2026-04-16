@@ -5,9 +5,10 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot, Activity, Sparkles, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot, Activity, Sparkles, Loader2, Eye, EyeOff } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { addToWatchlist, isWatched, removeFromWatchlist } from "@/lib/watchlist";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
 
 interface TwitterMetrics {
@@ -286,6 +287,7 @@ export default function Token() {
                       </p>
                     )}
                   </div>
+                  <WatchToggle ca={data.ca} />
                 </div>
               </CardContent>
             </Card>
@@ -641,6 +643,33 @@ function CohortGrid({ buyers }: { buyers: CohortBuyer[] }) {
         );
       })}
     </div>
+  );
+}
+
+function WatchToggle({ ca }: { ca: string }) {
+  const [watched, setWatched] = useState(false);
+  useEffect(() => {
+    setWatched(isWatched(ca));
+    const refresh = () => setWatched(isWatched(ca));
+    window.addEventListener("wbuddhi:watchlist-changed", refresh);
+    return () => window.removeEventListener("wbuddhi:watchlist-changed", refresh);
+  }, [ca]);
+  return (
+    <Button
+      size="sm"
+      variant={watched ? "default" : "outline"}
+      onClick={() => (watched ? removeFromWatchlist(ca) : addToWatchlist(ca))}
+    >
+      {watched ? (
+        <>
+          <EyeOff className="w-4 h-4" /> Unwatch
+        </>
+      ) : (
+        <>
+          <Eye className="w-4 h-4" /> Watch
+        </>
+      )}
+    </Button>
   );
 }
 

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, TrendingUp, Shield, Wallet as WalletIcon, ArrowLeft, Bot } from "lucide-react";
 import { useWallet } from "@/lib/wallet-context-new";
+import { WatchedTokens } from "@/components/WatchedTokens";
 
 type BotStatus = "active" | "inactive";
 
@@ -143,6 +144,8 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <WatchedTokens />
 
             <Card className="border-primary/20">
               <CardHeader>
