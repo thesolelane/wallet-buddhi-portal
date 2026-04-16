@@ -15,6 +15,7 @@ import Token from "@/pages/Token";
 import Lab from "@/pages/Lab";
 import Wallet from "@/pages/Wallet";
 import BadActors from "@/pages/BadActors";
+import Constellation from "@/pages/Constellation";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/lab" component={Lab} />
       <Route path="/wallet/:address" component={Wallet} />
       <Route path="/bad-actors" component={BadActors} />
+      <Route path="/token/:ca/constellation" component={Constellation} />
       <Route component={NotFound} />
     </Switch>
   );

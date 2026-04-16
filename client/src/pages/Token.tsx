@@ -5,7 +5,7 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot, Activity, Sparkles, Loader2, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot, Activity, Sparkles, Loader2, Eye, EyeOff, Orbit } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { addToWatchlist, isWatched, removeFromWatchlist } from "@/lib/watchlist";
@@ -295,6 +295,24 @@ export default function Token() {
 
             {/* Health pills — synthesize all signals at the top */}
             <HealthPills data={data} holders={holders} buyers={buyers} bump={bump} />
+
+            {/* Constellation link */}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-6 flex items-center gap-3">
+                <Orbit className="w-5 h-5 text-primary" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Wallet Constellation</p>
+                  <p className="text-xs text-muted-foreground">
+                    Radial view of every wallet connected to this token — dev, cohort, holders,
+                    snipers, bumpers, copycat leaders, funders — with connection lines revealing
+                    who is tied to whom.
+                  </p>
+                </div>
+                <Button size="sm" onClick={() => navigate(`/token/${data.ca}/constellation`)}>
+                  Open
+                </Button>
+              </CardContent>
+            </Card>
 
             {/* AI Analyst */}
             <AnalystCard ca={data.ca} />
