@@ -6,7 +6,7 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp, Target, AlertTriangle, GitBranch, Eye, EyeOff } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp, Target, AlertTriangle, GitBranch, Eye, EyeOff, Sparkles, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { addWalletToWatchlist, isWalletWatched, removeWalletFromWatchlist } from "@/lib/watchlist";
@@ -228,6 +228,9 @@ export default function Wallet() {
               />
             </div>
 
+            {/* Wallet AI Analyst */}
+            <WalletAnalystCard wallet={address} />
+
             {/* Copycat report */}
             <CopycatCard
               report={copycat}
@@ -310,6 +313,78 @@ function SummaryCard({ label, value, tone }: { label: string; value: string; ton
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className={`text-xl font-bold font-mono mt-1 ${toneClass}`}>{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WalletAnalystCard({ wallet }: { wallet: string }) {
+  const [verdict, setVerdict] = useState<string | null>(null);
+  const [model, setModel] = useState("llama3.1:8b");
+  const [latency, setLatency] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setErr(null);
+    setVerdict(null);
+    try {
+      const res = await fetch(`/api/wallet/${wallet}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model }),
+      });
+      const body = await res.json();
+      if (!body.ok) {
+        setErr(body.reason || body.error || "Analyst failed");
+        return;
+      }
+      setVerdict(body.verdict);
+      setLatency(body.latencyMs);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <Sparkles className="w-4 h-4" />
+          AI Analyst (local Ollama)
+          <span className="text-xs font-normal ml-auto">
+            {latency !== null && `${latency} ms`}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-2 mb-3">
+          <input
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="flex-1 bg-transparent border border-border rounded-md px-2 py-1 text-xs font-mono"
+            placeholder="model (e.g. llama3.1:8b)"
+          />
+          <Button onClick={run} disabled={busy} size="sm">
+            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            Analyze
+          </Button>
+        </div>
+        {err && <p className="text-xs text-destructive">{err}</p>}
+        {verdict && (
+          <pre className="whitespace-pre-wrap text-sm font-sans bg-muted/30 rounded-md p-3 border border-border">
+            {verdict}
+          </pre>
+        )}
+        {!verdict && !err && !busy && (
+          <p className="text-xs text-muted-foreground">
+            Sends this wallet's behavior signals (PNL, copycat leaders, funder) to your local Ollama
+            for a plain-English read.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

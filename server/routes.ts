@@ -11,6 +11,7 @@ import { runAnalyst } from "./analyst-service";
 import { getSocialReport } from "./social";
 import { getWalletActivity } from "./wallet-service";
 import { analyzeCopycat } from "./copycat-detector";
+import { runWalletAnalyst } from "./wallet-analyst-service";
 import { getAllFlaggedActors, getRegistrySnapshot } from "./bad-actor-registry";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
@@ -244,6 +245,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Ollama complete error:", error);
       return res.status(500).json({
         error: error instanceof Error ? error.message : "LLM call failed",
+      });
+    }
+  });
+
+  app.post("/api/wallet/:address/analyze", async (req, res) => {
+    try {
+      const { address } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(address)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const model = typeof req.body?.model === "string" ? req.body.model : "llama3.1:8b";
+      const result = await runWalletAnalyst(address, model);
+      return res.json(result);
+    } catch (error) {
+      console.error("Wallet analyst error:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Wallet analyst failed",
       });
     }
   });

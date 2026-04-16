@@ -1,4 +1,4 @@
-import { LayoutDashboard, BookOpen, HelpCircle, Shield, FlaskConical } from "lucide-react";
+import { LayoutDashboard, BookOpen, HelpCircle, Shield, FlaskConical, AlertTriangle } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "./ui/button";
 import { WalletButton } from "./WalletButton-new";
@@ -66,6 +66,17 @@ export function Header() {
               >
                 <FlaskConical className="h-4 w-4 mr-2" />
                 Lab
+              </Button>
+            )}
+            {location !== "/bad-actors" && (
+              <Button
+                variant="ghost"
+                onClick={() => navigate("/bad-actors")}
+                data-testid="link-bad-actors"
+                className="hover-elevate active-elevate-2"
+              >
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Bad Actors
               </Button>
             )}
             
