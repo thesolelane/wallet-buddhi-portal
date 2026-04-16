@@ -6,7 +6,8 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp } from "lucide-react";
+import { useMemo } from "react";
 
 type SwapDirection = "buy" | "sell" | "unknown";
 
@@ -21,6 +22,19 @@ interface WalletSwap {
   quoteSymbol: "SOL" | "USDC" | "USDT" | "other";
   quoteAmount: number;
   priorityFeeSol: number;
+}
+
+interface TokenPnlRow {
+  tokenMint: string;
+  buys: number;
+  sells: number;
+  solSpent: number;
+  solReceived: number;
+  tokenBought: number;
+  tokenSold: number;
+  firstSeen: number;
+  lastSeen: number;
+  realizedSol?: number;
 }
 
 interface WalletActivity {
@@ -71,6 +85,41 @@ export default function Wallet() {
     .filter((s) => s.direction === "sell" && s.quoteSymbol === "SOL")
     .reduce((sum, s) => sum + s.quoteAmount, 0) ?? 0;
   const netSol = sellVolume - buyVolume;
+
+  // Per-token PNL (SOL-quoted swaps only, since USDC/USDT would need price normalization)
+  const tokenPnl = useMemo<TokenPnlRow[]>(() => {
+    if (!data?.ok) return [];
+    const map = new Map<string, TokenPnlRow>();
+    for (const s of data.swaps) {
+      if (s.quoteSymbol !== "SOL") continue;
+      const row = map.get(s.tokenMint) ?? {
+        tokenMint: s.tokenMint,
+        buys: 0,
+        sells: 0,
+        solSpent: 0,
+        solReceived: 0,
+        tokenBought: 0,
+        tokenSold: 0,
+        firstSeen: s.timestamp,
+        lastSeen: s.timestamp,
+      };
+      if (s.direction === "buy") {
+        row.buys += 1;
+        row.solSpent += s.quoteAmount;
+        row.tokenBought += s.tokenAmount;
+      } else if (s.direction === "sell") {
+        row.sells += 1;
+        row.solReceived += s.quoteAmount;
+        row.tokenSold += s.tokenAmount;
+      }
+      row.firstSeen = Math.min(row.firstSeen, s.timestamp);
+      row.lastSeen = Math.max(row.lastSeen, s.timestamp);
+      map.set(s.tokenMint, row);
+    }
+    return Array.from(map.values())
+      .map((r) => ({ ...r, realizedSol: r.solReceived - r.solSpent }))
+      .sort((a, b) => Math.abs(b.realizedSol!) - Math.abs(a.realizedSol!));
+  }, [data]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -140,6 +189,41 @@ export default function Wallet() {
               />
             </div>
 
+            {/* Per-token PNL */}
+            {tokenPnl.length > 0 && (
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" />
+                    Per-Token Activity (SOL-quoted)
+                    <span className="text-xs font-normal ml-auto">
+                      from last ~{data.scannedTxs} txs · rough estimate
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1 text-xs font-mono">
+                    <div className="grid grid-cols-12 gap-2 text-muted-foreground pb-1 border-b border-border">
+                      <div className="col-span-3">Token</div>
+                      <div className="col-span-1 text-right">Buys</div>
+                      <div className="col-span-1 text-right">Sells</div>
+                      <div className="col-span-2 text-right">SOL in</div>
+                      <div className="col-span-2 text-right">SOL out</div>
+                      <div className="col-span-3 text-right">Realized Δ</div>
+                    </div>
+                    {tokenPnl.slice(0, 20).map((r) => (
+                      <PnlRow key={r.tokenMint} r={r} onOpen={(ca) => navigate(`/token/${ca}`)} />
+                    ))}
+                    {tokenPnl.length > 20 && (
+                      <p className="text-xs text-muted-foreground pt-1">
+                        …and {tokenPnl.length - 20} more tokens
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Swap list */}
             <Card>
               <CardHeader>
@@ -181,6 +265,36 @@ function SummaryCard({ label, value, tone }: { label: string; value: string; ton
         <p className={`text-xl font-bold font-mono mt-1 ${toneClass}`}>{value}</p>
       </CardContent>
     </Card>
+  );
+}
+
+function PnlRow({
+  r,
+  onOpen,
+}: {
+  r: TokenPnlRow;
+  onOpen: (ca: string) => void;
+}) {
+  const realized = r.realizedSol ?? 0;
+  const tone = realized > 0.001 ? "text-green-500" : realized < -0.001 ? "text-destructive" : "text-muted-foreground";
+  return (
+    <div className="grid grid-cols-12 gap-2 items-center py-0.5 hover:bg-muted/30 rounded-sm">
+      <button
+        onClick={() => onOpen(r.tokenMint)}
+        className="col-span-3 text-left truncate hover:text-primary"
+        title={`Open token · ${r.tokenMint}`}
+      >
+        {r.tokenMint.slice(0, 4)}…{r.tokenMint.slice(-4)}
+      </button>
+      <div className="col-span-1 text-right">{r.buys}</div>
+      <div className="col-span-1 text-right">{r.sells}</div>
+      <div className="col-span-2 text-right">{r.solSpent.toFixed(3)}</div>
+      <div className="col-span-2 text-right">{r.solReceived.toFixed(3)}</div>
+      <div className={`col-span-3 text-right ${tone}`}>
+        {realized >= 0 ? "+" : ""}
+        {realized.toFixed(3)} SOL
+      </div>
+    </div>
   );
 }
 
