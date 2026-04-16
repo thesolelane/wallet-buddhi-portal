@@ -10,6 +10,8 @@ import { detectBumpBots } from "./bump-detector";
 import { runAnalyst } from "./analyst-service";
 import { getSocialReport } from "./social";
 import { getWalletActivity } from "./wallet-service";
+import { analyzeCopycat } from "./copycat-detector";
+import { getAllFlaggedActors, getRegistrySnapshot } from "./bad-actor-registry";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
 
@@ -244,6 +246,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : "LLM call failed",
       });
     }
+  });
+
+  // --- Copycat detector + bad-actor registry ---
+  app.get("/api/wallet/:address/copycat", async (req, res) => {
+    try {
+      const { address } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(address)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const result = await analyzeCopycat(address);
+      return res.json(result);
+    } catch (error) {
+      console.error("Copycat analysis error:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed copycat analysis",
+      });
+    }
+  });
+
+  app.get("/api/bad-actors", (_req, res) => {
+    return res.json({
+      ...getRegistrySnapshot(),
+      flagged: getAllFlaggedActors(),
+    });
   });
 
   // --- Wallet activity (companion core) ---

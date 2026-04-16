@@ -6,7 +6,7 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp, Target, AlertTriangle, GitBranch } from "lucide-react";
 import { useMemo } from "react";
 
 type SwapDirection = "buy" | "sell" | "unknown";
@@ -22,6 +22,37 @@ interface WalletSwap {
   quoteSymbol: "SOL" | "USDC" | "USDT" | "other";
   quoteAmount: number;
   priorityFeeSol: number;
+}
+
+interface LeaderHit {
+  leader: string;
+  sharedTokens: number;
+  avgLagSec: number;
+  samples: Array<{ tokenMint: string; lagSec: number }>;
+}
+
+interface FunderTrace {
+  funder: string | null;
+  firstFundingSignature: string | null;
+  firstFundingTs: number | null;
+  knownAsCexDeposit: boolean;
+  reason?: string;
+}
+
+interface CopycatReport {
+  wallet: string;
+  analyzedTokens: number;
+  leaders: LeaderHit[];
+  isCopycat: boolean;
+  funder: FunderTrace;
+  funderReport: {
+    fundedCount: number;
+    copycatCount: number;
+    flagged: boolean;
+  } | null;
+  fetchedAt: number;
+  ok: boolean;
+  reason?: string;
 }
 
 interface TokenPnlRow {
@@ -75,6 +106,11 @@ export default function Wallet() {
 
   const { data, isLoading, error } = useQuery<WalletActivity>({
     queryKey: [`/api/wallet/${address}/activity`],
+    enabled: !!address,
+  });
+
+  const { data: copycat, isLoading: copycatLoading } = useQuery<CopycatReport>({
+    queryKey: [`/api/wallet/${address}/copycat`],
     enabled: !!address,
   });
 
@@ -189,6 +225,14 @@ export default function Wallet() {
               />
             </div>
 
+            {/* Copycat report */}
+            <CopycatCard
+              report={copycat}
+              loading={copycatLoading}
+              onOpenWallet={(w) => navigate(`/wallet/${w}`)}
+              onOpenToken={(t) => navigate(`/token/${t}`)}
+            />
+
             {/* Per-token PNL */}
             {tokenPnl.length > 0 && (
               <Card className="mb-4">
@@ -263,6 +307,151 @@ function SummaryCard({ label, value, tone }: { label: string; value: string; ton
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className={`text-xl font-bold font-mono mt-1 ${toneClass}`}>{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CopycatCard({
+  report,
+  loading,
+  onOpenWallet,
+  onOpenToken,
+}: {
+  report?: CopycatReport;
+  loading: boolean;
+  onOpenWallet: (w: string) => void;
+  onOpenToken: (t: string) => void;
+}) {
+  const fmtLag = (sec: number) => {
+    if (sec < 60) return `${sec.toFixed(0)}s`;
+    if (sec < 3600) return `${(sec / 60).toFixed(1)}m`;
+    return `${(sec / 3600).toFixed(1)}h`;
+  };
+
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <Target className="w-4 h-4" />
+          Copycat & Source Trace
+          {report?.ok && (
+            <span className="ml-auto flex gap-2 text-xs font-normal">
+              {report.isCopycat ? (
+                <Badge variant="destructive" className="uppercase">Copycat</Badge>
+              ) : (
+                <Badge variant="secondary">Original</Badge>
+              )}
+              {report.funderReport?.flagged && (
+                <Badge variant="destructive" className="uppercase">Bad-actor funder</Badge>
+              )}
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading && <Skeleton className="h-20 w-full" />}
+
+        {report && !report.ok && (
+          <p className="text-sm text-muted-foreground">
+            Unable to analyze: {report.reason}
+          </p>
+        )}
+
+        {report?.ok && (
+          <>
+            {/* Leaders */}
+            <div>
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+                <GitBranch className="w-3 h-3" /> Leaders (wallets this wallet appears to copy)
+              </h4>
+              {report.leaders.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No consistent leader detected across the last {report.analyzedTokens} buys.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {report.leaders.map((l) => (
+                    <div key={l.leader} className="flex items-center gap-2 text-xs font-mono p-1.5 rounded hover:bg-muted/30">
+                      <button
+                        onClick={() => onOpenWallet(l.leader)}
+                        className="w-28 text-left hover:text-primary truncate"
+                        title={`Open leader wallet · ${l.leader}`}
+                      >
+                        {l.leader.slice(0, 4)}…{l.leader.slice(-4)}
+                      </button>
+                      <span className="text-muted-foreground">
+                        copied on {l.sharedTokens} tokens
+                      </span>
+                      <span className="text-orange-500">
+                        avg lag {fmtLag(l.avgLagSec)}
+                      </span>
+                      <div className="flex-1 flex flex-wrap gap-1 justify-end">
+                        {l.samples.slice(0, 5).map((s, i) => (
+                          <button
+                            key={i}
+                            onClick={() => onOpenToken(s.tokenMint)}
+                            className="text-[10px] text-muted-foreground hover:text-foreground"
+                            title={`Opened this token ${fmtLag(s.lagSec)} after leader`}
+                          >
+                            {s.tokenMint.slice(0, 3)}…{s.tokenMint.slice(-2)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Funder trace */}
+            <div className="border-t border-border pt-3">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Funding Source (oldest incoming SOL transfer)
+              </h4>
+              {report.funder.funder ? (
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onOpenWallet(report.funder.funder!)}
+                      className="font-mono hover:text-primary"
+                      title={report.funder.funder}
+                    >
+                      {report.funder.funder.slice(0, 6)}…{report.funder.funder.slice(-4)}
+                    </button>
+                    {report.funder.knownAsCexDeposit && (
+                      <Badge variant="outline" className="text-xs">CEX deposit — trace ends here</Badge>
+                    )}
+                    {report.funder.firstFundingSignature && (
+                      <a
+                        href={`https://solscan.io/tx/${report.funder.firstFundingSignature}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  {report.funderReport && (
+                    <div className="text-muted-foreground">
+                      Registered as funder of {report.funderReport.fundedCount} wallets
+                      {" · "}
+                      {report.funderReport.copycatCount} confirmed copycats
+                      {report.funderReport.flagged && (
+                        <span className="text-destructive font-semibold"> · FLAGGED</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {report.funder.reason ?? "No funding source detected in recent history"}
+                </p>
+              )}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
