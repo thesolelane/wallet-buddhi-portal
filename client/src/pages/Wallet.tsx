@@ -6,8 +6,10 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp, Target, AlertTriangle, GitBranch } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp, Target, AlertTriangle, GitBranch, Eye, EyeOff } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { addWalletToWatchlist, isWalletWatched, removeWalletFromWatchlist } from "@/lib/watchlist";
 
 type SwapDirection = "buy" | "sell" | "unknown";
 
@@ -174,6 +176,7 @@ export default function Wallet() {
                 {address} <Copy className="w-3 h-3 inline-block ml-1 opacity-50" />
               </button>
             </div>
+            <WalletWatchToggle address={address} />
             <a
               href={`https://solscan.io/account/${address}`}
               target="_blank"
@@ -309,6 +312,33 @@ function SummaryCard({ label, value, tone }: { label: string; value: string; ton
         <p className={`text-xl font-bold font-mono mt-1 ${toneClass}`}>{value}</p>
       </CardContent>
     </Card>
+  );
+}
+
+function WalletWatchToggle({ address }: { address: string }) {
+  const [watched, setWatched] = useState(false);
+  useEffect(() => {
+    setWatched(isWalletWatched(address));
+    const refresh = () => setWatched(isWalletWatched(address));
+    window.addEventListener("wbuddhi:watchlist-changed", refresh);
+    return () => window.removeEventListener("wbuddhi:watchlist-changed", refresh);
+  }, [address]);
+  return (
+    <Button
+      size="sm"
+      variant={watched ? "default" : "outline"}
+      onClick={() => (watched ? removeWalletFromWatchlist(address) : addWalletToWatchlist(address))}
+    >
+      {watched ? (
+        <>
+          <EyeOff className="w-4 h-4" /> Unwatch
+        </>
+      ) : (
+        <>
+          <Eye className="w-4 h-4" /> Watch
+        </>
+      )}
+    </Button>
   );
 }
 

@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, Trash2, ExternalLink } from "lucide-react";
-import { getWatchlist, removeFromWatchlist, type WatchEntry } from "@/lib/watchlist";
+import { Eye, Trash2, ExternalLink, Wallet as WalletIcon } from "lucide-react";
+import {
+  getWatchlist,
+  removeFromWatchlist,
+  getWalletWatchlist,
+  removeWalletFromWatchlist,
+  type WatchEntry,
+  type WatchWalletEntry,
+} from "@/lib/watchlist";
 
 function shorten(addr: string, head = 6, tail = 4) {
   if (!addr || addr.length <= head + tail + 1) return addr;
@@ -22,9 +29,13 @@ function timeAgo(ms: number): string {
 export function WatchedTokens() {
   const [, navigate] = useLocation();
   const [list, setList] = useState<WatchEntry[]>(getWatchlist());
+  const [walletList, setWalletList] = useState<WatchWalletEntry[]>(getWalletWatchlist());
 
   useEffect(() => {
-    const refresh = () => setList(getWatchlist());
+    const refresh = () => {
+      setList(getWatchlist());
+      setWalletList(getWalletWatchlist());
+    };
     window.addEventListener("wbuddhi:watchlist-changed", refresh);
     window.addEventListener("storage", refresh);
     return () => {
@@ -34,55 +45,109 @@ export function WatchedTokens() {
   }, []);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Eye className="h-5 w-5 text-primary" />
-          Watched Tokens
-          <span className="ml-auto text-xs font-normal text-muted-foreground">
-            {list.length} saved · stored locally
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {list.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No watched tokens yet. Open any token page and click "Watch" to save it here.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {list.map((w) => (
-              <div
-                key={w.ca}
-                className="flex items-center gap-2 p-2 rounded-md border border-border hover:bg-muted/50"
-              >
-                <button
-                  onClick={() => navigate(`/token/${w.ca}`)}
-                  className="flex-1 text-left font-mono text-sm hover:text-primary"
-                  title={w.ca}
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Eye className="h-5 w-5 text-primary" />
+            Watched Tokens
+            <span className="ml-auto text-xs font-normal text-muted-foreground">
+              {list.length} saved · stored locally
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {list.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No watched tokens yet. Open any token page and click "Watch" to save it here.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {list.map((w) => (
+                <div
+                  key={w.ca}
+                  className="flex items-center gap-2 p-2 rounded-md border border-border hover:bg-muted/50"
                 >
-                  {shorten(w.ca, 8, 6)}
-                </button>
-                <span className="text-xs text-muted-foreground">added {timeAgo(w.addedAt)}</span>
-                <button
-                  onClick={() => navigate(`/token/${w.ca}`)}
-                  className="p-1 hover:text-foreground text-muted-foreground"
-                  title="Open token page"
+                  <button
+                    onClick={() => navigate(`/token/${w.ca}`)}
+                    className="flex-1 text-left font-mono text-sm hover:text-primary"
+                    title={w.ca}
+                  >
+                    {shorten(w.ca, 8, 6)}
+                  </button>
+                  <span className="text-xs text-muted-foreground">added {timeAgo(w.addedAt)}</span>
+                  <button
+                    onClick={() => navigate(`/token/${w.ca}`)}
+                    className="p-1 hover:text-foreground text-muted-foreground"
+                    title="Open token page"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => removeFromWatchlist(w.ca)}
+                    className="p-1 hover:text-destructive text-muted-foreground"
+                    title="Remove from watchlist"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <WalletIcon className="h-5 w-5 text-primary" />
+            Watched Wallets
+            <span className="ml-auto text-xs font-normal text-muted-foreground">
+              {walletList.length} saved · stored locally
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {walletList.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No watched wallets yet. Open any wallet page and click "Watch" to save it here.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {walletList.map((w) => (
+                <div
+                  key={w.address}
+                  className="flex items-center gap-2 p-2 rounded-md border border-border hover:bg-muted/50"
                 >
-                  <ExternalLink className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => removeFromWatchlist(w.ca)}
-                  className="p-1 hover:text-destructive text-muted-foreground"
-                  title="Remove from watchlist"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                  <button
+                    onClick={() => navigate(`/wallet/${w.address}`)}
+                    className="flex-1 text-left font-mono text-sm hover:text-primary"
+                    title={w.address}
+                  >
+                    {shorten(w.address, 8, 6)}
+                    {w.label && <span className="ml-2 text-xs text-muted-foreground italic">· {w.label}</span>}
+                  </button>
+                  <span className="text-xs text-muted-foreground">added {timeAgo(w.addedAt)}</span>
+                  <button
+                    onClick={() => navigate(`/wallet/${w.address}`)}
+                    className="p-1 hover:text-foreground text-muted-foreground"
+                    title="Open wallet page"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => removeWalletFromWatchlist(w.address)}
+                    className="p-1 hover:text-destructive text-muted-foreground"
+                    title="Remove from watchlist"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }
