@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -202,6 +202,7 @@ function copy(s: string) {
 export default function Token() {
   const params = useParams<{ ca: string }>();
   const ca = params.ca;
+  const [, navigate] = useLocation();
 
   const { data, isLoading, error } = useQuery<TokenMetadata>({
     queryKey: [`/api/token/${ca}`],
@@ -424,7 +425,10 @@ export default function Token() {
                 )}
                 {buyers?.ok && buyers.buyers.length > 0 && (
                   <>
-                    <CohortGrid buyers={buyers.buyers} />
+                    <CohortGrid
+                      buyers={buyers.buyers}
+                      onOpen={(w) => navigate(`/wallet/${w}`)}
+                    />
                     <p className="text-xs text-muted-foreground mt-3">
                       Green = still holding · Gray = exited · Orange ring = sniper
                       {" (Jito-tipped or high priority fee in first 100)"}
@@ -476,7 +480,11 @@ export default function Token() {
                 {bump?.ok && bump.suspectWallets.length > 0 && (
                   <div className="space-y-1.5">
                     {bump.suspectWallets.slice(0, 10).map((w) => (
-                      <BumpRow key={w.wallet} w={w} />
+                      <BumpRow
+                        key={w.wallet}
+                        w={w}
+                        onOpen={(addr) => navigate(`/wallet/${addr}`)}
+                      />
                     ))}
                     {bump.suspectWallets.length > 10 && (
                       <p className="text-xs text-muted-foreground pt-1">
@@ -514,7 +522,11 @@ export default function Token() {
                 {holders?.ok && holders.holders.length > 0 && (
                   <div className="space-y-1">
                     {holders.holders.map((h) => (
-                      <HolderRow key={h.owner} h={h} />
+                      <HolderRow
+                        key={h.owner}
+                        h={h}
+                        onOpen={(w) => navigate(`/wallet/${w}`)}
+                      />
                     ))}
                   </div>
                 )}
@@ -613,7 +625,13 @@ export default function Token() {
   );
 }
 
-function CohortGrid({ buyers }: { buyers: CohortBuyer[] }) {
+function CohortGrid({
+  buyers,
+  onOpen,
+}: {
+  buyers: CohortBuyer[];
+  onOpen: (wallet: string) => void;
+}) {
   return (
     <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(20, minmax(0, 1fr))" }}>
       {buyers.map((b) => {
@@ -636,7 +654,7 @@ function CohortGrid({ buyers }: { buyers: CohortBuyer[] }) {
           <button
             key={b.wallet + b.signature}
             title={title}
-            onClick={() => copy(b.wallet)}
+            onClick={() => onOpen(b.wallet)}
             className={`aspect-square rounded-sm ${tone} ${sniperRing} transition-colors`}
             aria-label={title}
           />
@@ -931,14 +949,14 @@ function HealthPills({
   );
 }
 
-function BumpRow({ w }: { w: BumpWallet }) {
+function BumpRow({ w, onOpen }: { w: BumpWallet; onOpen: (wallet: string) => void }) {
   const roundTrips = Math.min(w.buys, w.sells);
   return (
     <div className="flex items-center gap-2 text-xs font-mono">
       <button
-        onClick={() => copy(w.wallet)}
-        className="w-28 text-left hover:text-foreground truncate"
-        title={w.wallet}
+        onClick={() => onOpen(w.wallet)}
+        className="w-28 text-left hover:text-primary truncate"
+        title={`Open wallet · ${w.wallet}`}
       >
         {shorten(w.wallet, 4, 4)}
       </button>
@@ -955,7 +973,7 @@ function BumpRow({ w }: { w: BumpWallet }) {
   );
 }
 
-function HolderRow({ h }: { h: Holder }) {
+function HolderRow({ h, onOpen }: { h: Holder; onOpen: (wallet: string) => void }) {
   const pct = h.pctOfSupply ?? 0;
   const barWidth = Math.min(100, pct);
   // Color intensity: >5% concerning (whale), 1-5% notable, <1% normal
@@ -965,9 +983,9 @@ function HolderRow({ h }: { h: Holder }) {
     <div className="flex items-center gap-2 text-xs font-mono">
       <span className="w-8 text-muted-foreground text-right">#{h.rank}</span>
       <button
-        onClick={() => copy(h.owner)}
-        className="w-28 text-left hover:text-foreground truncate"
-        title={h.owner}
+        onClick={() => onOpen(h.owner)}
+        className="w-28 text-left hover:text-primary truncate"
+        title={`Open wallet · ${h.owner}`}
       >
         {shorten(h.owner, 4, 4)}
       </button>

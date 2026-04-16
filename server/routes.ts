@@ -9,6 +9,7 @@ import { getFirstBuyers, classifyCohort } from "./buyers-service";
 import { detectBumpBots } from "./bump-detector";
 import { runAnalyst } from "./analyst-service";
 import { getSocialReport } from "./social";
+import { getWalletActivity } from "./wallet-service";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
 
@@ -241,6 +242,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Ollama complete error:", error);
       return res.status(500).json({
         error: error instanceof Error ? error.message : "LLM call failed",
+      });
+    }
+  });
+
+  // --- Wallet activity (companion core) ---
+  app.get("/api/wallet/:address/activity", async (req, res) => {
+    try {
+      const { address } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(address)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 300);
+      const result = await getWalletActivity(address, limit);
+      return res.json(result);
+    } catch (error) {
+      console.error("Wallet activity error:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to fetch wallet activity",
       });
     }
   });

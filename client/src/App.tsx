@@ -13,6 +13,7 @@ import FAQ from "@/pages/FAQ";
 import Security from "@/pages/Security";
 import Token from "@/pages/Token";
 import Lab from "@/pages/Lab";
+import Wallet from "@/pages/Wallet";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/security" component={Security} />
       <Route path="/token/:ca" component={Token} />
       <Route path="/lab" component={Lab} />
+      <Route path="/wallet/:address" component={Wallet} />
       <Route component={NotFound} />
     </Switch>
   );
