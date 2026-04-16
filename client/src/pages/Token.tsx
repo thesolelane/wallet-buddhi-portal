@@ -5,7 +5,9 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot, Activity } from "lucide-react";
+import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot, Activity, Sparkles, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
 
 interface BumpWallet {
@@ -249,6 +251,9 @@ export default function Token() {
 
             {/* Health pills — synthesize all signals at the top */}
             <HealthPills data={data} holders={holders} buyers={buyers} bump={bump} />
+
+            {/* AI Analyst */}
+            <AnalystCard ca={data.ca} />
 
             {/* State cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -545,6 +550,78 @@ function CohortGrid({ buyers }: { buyers: CohortBuyer[] }) {
         );
       })}
     </div>
+  );
+}
+
+function AnalystCard({ ca }: { ca: string }) {
+  const [verdict, setVerdict] = useState<string | null>(null);
+  const [model, setModel] = useState("llama3.1:8b");
+  const [latency, setLatency] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setErr(null);
+    setVerdict(null);
+    try {
+      const res = await fetch(`/api/token/${ca}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model }),
+      });
+      const body = await res.json();
+      if (!body.ok) {
+        setErr(body.reason || body.error || "Analyst failed");
+        return;
+      }
+      setVerdict(body.verdict);
+      setLatency(body.latencyMs);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <Sparkles className="w-4 h-4" />
+          AI Analyst (local Ollama)
+          <span className="text-xs font-normal ml-auto">
+            {latency !== null && `${latency} ms`}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-2 mb-3">
+          <input
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="flex-1 bg-transparent border border-border rounded-md px-2 py-1 text-xs font-mono"
+            placeholder="model (e.g. llama3.1:8b)"
+          />
+          <Button onClick={run} disabled={busy} size="sm">
+            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            Analyze
+          </Button>
+        </div>
+        {err && <p className="text-xs text-destructive">{err}</p>}
+        {verdict && (
+          <pre className="whitespace-pre-wrap text-sm font-sans bg-muted/30 rounded-md p-3 border border-border">
+            {verdict}
+          </pre>
+        )}
+        {!verdict && !err && !busy && (
+          <p className="text-xs text-muted-foreground">
+            Sends the structured signals above to your local Ollama instance and returns a plain-English
+            verdict. No cloud calls. Configure <code>OLLAMA_HOST</code> in <code>.env</code>.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

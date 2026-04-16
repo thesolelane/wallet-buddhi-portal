@@ -7,6 +7,7 @@ import { getTokenMetadata } from "./token-service";
 import { getTopHolders } from "./holders-service";
 import { getFirstBuyers, classifyCohort } from "./buyers-service";
 import { detectBumpBots } from "./bump-detector";
+import { runAnalyst } from "./analyst-service";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
 
@@ -239,6 +240,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Ollama complete error:", error);
       return res.status(500).json({
         error: error instanceof Error ? error.message : "LLM call failed",
+      });
+    }
+  });
+
+  // --- AI Analyst (Ollama-powered) ---
+  app.post("/api/token/:ca/analyze", async (req, res) => {
+    try {
+      const { ca } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(ca)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const model = typeof req.body?.model === "string" ? req.body.model : "llama3.1:8b";
+      const result = await runAnalyst(ca, model);
+      return res.json(result);
+    } catch (error) {
+      console.error("Analyst error:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Analyst failed",
       });
     }
   });
