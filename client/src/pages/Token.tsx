@@ -5,11 +5,46 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot, Activity, Sparkles, Loader2, Eye, EyeOff, Orbit } from "lucide-react";
+import { CheckCircle2, XCircle, ExternalLink, Globe, MessageCircle, Users, Grid3x3, Bot, Activity, Sparkles, Loader2, Eye, EyeOff, Orbit, ShieldAlert, ShieldCheck, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { addToWatchlist, isWatched, removeFromWatchlist } from "@/lib/watchlist";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
+
+type MatchKind =
+  | "exactNormalizedName"
+  | "exactNormalizedSymbol"
+  | "fuzzyName"
+  | "fuzzySymbol"
+  | "sameTwitter"
+  | "sameWebsite"
+  | "caPrefixMatch";
+
+interface IdentityMatch {
+  protectedToken: {
+    ca: string;
+    name: string;
+    symbol: string;
+    twitterHandle: string | null;
+    websiteDomain: string | null;
+  };
+  kinds: MatchKind[];
+  score: number;
+  note: string;
+}
+
+interface IdentityCheckResult {
+  ca: string;
+  name: string;
+  symbol: string;
+  twitterHandle: string | null;
+  websiteDomain: string | null;
+  isSelf: boolean;
+  matches: IdentityMatch[];
+  highestScore: number;
+  ok: boolean;
+  reason?: string;
+}
 
 interface TwitterMetrics {
   handle: string;
@@ -229,6 +264,11 @@ export default function Token() {
     enabled: !!ca,
   });
 
+  const { data: identity } = useQuery<IdentityCheckResult>({
+    queryKey: [`/api/token/${ca}/identity-check`],
+    enabled: !!ca,
+  });
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -292,6 +332,11 @@ export default function Token() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Identity check — show ABOVE health pills when there's a hit */}
+            {identity?.ok && (identity.matches.length > 0 || identity.isSelf) && (
+              <IdentityCheckCard identity={identity} onOpen={(c) => navigate(`/token/${c}`)} />
+            )}
 
             {/* Health pills — synthesize all signals at the top */}
             <HealthPills data={data} holders={holders} buyers={buyers} bump={bump} />
@@ -830,6 +875,106 @@ function AnalystCard({ ca }: { ca: string }) {
             Sends the structured signals above to your local Ollama instance and returns a plain-English
             verdict. No cloud calls. Configure <code>OLLAMA_HOST</code> in <code>.env</code>.
           </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function IdentityCheckCard({
+  identity,
+  onOpen,
+}: {
+  identity: IdentityCheckResult;
+  onOpen: (ca: string) => void;
+}) {
+  if (identity.isSelf) {
+    return (
+      <Card className="border-green-500/40 bg-green-500/5">
+        <CardContent className="pt-6 flex items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-green-500" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-500">Verified — this is a Protected Token</p>
+            <p className="text-xs text-muted-foreground">
+              You've marked this CA as a canonical token on your Dashboard.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const top = identity.matches[0];
+  if (!top) return null;
+
+  const severity =
+    top.score >= 70 ? "high" : top.score >= 40 ? "medium" : "low";
+
+  const borderClass =
+    severity === "high"
+      ? "border-destructive/50 bg-destructive/10"
+      : severity === "medium"
+        ? "border-orange-500/40 bg-orange-500/5"
+        : "border-yellow-500/30 bg-yellow-500/5";
+
+  const Icon = severity === "high" ? ShieldAlert : Shield;
+  const iconTone =
+    severity === "high"
+      ? "text-destructive"
+      : severity === "medium"
+        ? "text-orange-500"
+        : "text-yellow-500";
+
+  return (
+    <Card className={borderClass}>
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Icon className={`w-4 h-4 ${iconTone}`} />
+          Identity Check —
+          {severity === "high" && <span className="text-destructive">Likely impersonator</span>}
+          {severity === "medium" && <span className="text-orange-500">Possible impersonator</span>}
+          {severity === "low" && <span className="text-yellow-500">Weak match</span>}
+          <span className="ml-auto text-xs font-normal text-muted-foreground">
+            confidence {top.score}/100
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 text-xs">
+        <p>
+          Matches protected token{" "}
+          <button onClick={() => onOpen(top.protectedToken.ca)} className="font-semibold hover:text-primary">
+            {top.protectedToken.name}
+            {top.protectedToken.symbol && ` ($${top.protectedToken.symbol})`}
+          </button>
+        </p>
+        <p className="text-muted-foreground">{top.note}</p>
+        <div className="flex flex-wrap gap-1 pt-1">
+          {top.kinds.map((k) => (
+            <span
+              key={k}
+              className="text-[10px] px-1.5 py-0.5 rounded border border-border"
+            >
+              {k}
+            </span>
+          ))}
+        </div>
+        {identity.matches.length > 1 && (
+          <div className="pt-2 border-t border-border">
+            <p className="text-[10px] text-muted-foreground mb-1">
+              Other matches:
+            </p>
+            <div className="space-y-1">
+              {identity.matches.slice(1, 4).map((m, i) => (
+                <div key={i} className="flex items-center gap-2 text-[11px]">
+                  <span className="text-muted-foreground">{m.score}/100</span>
+                  <button onClick={() => onOpen(m.protectedToken.ca)} className="hover:text-primary">
+                    {m.protectedToken.name} {m.protectedToken.symbol && `($${m.protectedToken.symbol})`}
+                  </button>
+                  <span className="text-muted-foreground truncate">{m.note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

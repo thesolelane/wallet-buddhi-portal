@@ -28,6 +28,12 @@ import {
   getPersistentPairs,
   getRegistryCounts,
 } from "./session-registry";
+import {
+  addProtectedToken,
+  removeProtectedToken,
+  listProtectedTokens,
+} from "./protected-tokens";
+import { checkTokenIdentity } from "./token-copycat-service";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
 
@@ -318,6 +324,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ...getRegistrySnapshot(),
       flagged: getAllFlaggedActors(),
     });
+  });
+
+  // --- Protected tokens + Identity check ---
+  app.get("/api/protected-tokens", (_req, res) => {
+    return res.json({ tokens: listProtectedTokens() });
+  });
+
+  app.post("/api/protected-tokens", async (req, res) => {
+    try {
+      const { ca, note } = req.body ?? {};
+      if (!ca || !SOLANA_ADDRESS_RE.test(ca)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const entry = await addProtectedToken(ca, typeof note === "string" ? note : undefined);
+      return res.json(entry);
+    } catch (error) {
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to add protected token",
+      });
+    }
+  });
+
+  app.delete("/api/protected-tokens/:ca", (req, res) => {
+    const { ca } = req.params;
+    const removed = removeProtectedToken(ca);
+    return res.json({ removed });
+  });
+
+  app.get("/api/token/:ca/identity-check", async (req, res) => {
+    try {
+      const { ca } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(ca)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const result = await checkTokenIdentity(ca);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Identity check failed",
+      });
+    }
   });
 
   // --- Leaderboards ---

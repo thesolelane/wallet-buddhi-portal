@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, TrendingUp, Shield, Wallet as WalletIcon, ArrowLeft, Bot } from "lucide-react";
 import { useWallet } from "@/lib/wallet-context-new";
 import { WatchedTokens } from "@/components/WatchedTokens";
+import { ProtectedTokens } from "@/components/ProtectedTokens";
 
 type BotStatus = "active" | "inactive";
 
@@ -146,6 +147,7 @@ export default function Dashboard() {
             </div>
 
             <WatchedTokens />
+            <ProtectedTokens />
 
             <Card className="border-primary/20">
               <CardHeader>
