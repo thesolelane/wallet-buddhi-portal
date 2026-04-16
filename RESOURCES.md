@@ -144,8 +144,42 @@ Libraries planned:
 - Health Pills card synthesizing all signals into single-glance status
 - Token search on Home page (enter CA → `/token/:ca`)
 - Lab page (`/lab`) for testing Ollama models interactively
-- Watchlist: localStorage-backed, surfaced on Dashboard
-- Header nav: Lab link
+- Watchlist: localStorage-backed — **tokens and wallets**, surfaced on Dashboard
+- Header nav: Lab + Bad Actors links
+- **Wallet page** (`/wallet/:address`): swap activity, per-token PNL, AI Analyst
+- **Copycat detector** (`/api/wallet/:addr/copycat`): finds leaders a wallet
+  copies from, traces funder, flags CEX-deposit endpoints
+- **Bad Actor Registry** (`/api/bad-actors`, `/bad-actors` page): tracks funders
+  that have funded 3+ confirmed copycats; click through to the funder wallet
+  and its funded cluster
+- **Wallet AI Analyst** (`/api/wallet/:addr/analyze`): Ollama verdict on trader
+  patterns — mirror of token analyst
+- Deep links: holder rows, cohort grid cells, and bump-bot rows on Token page
+  all navigate to the clicked wallet's page
+
+### Fighting back against copycats / bots
+The copycat pipeline is the portal's core defensive feature:
+
+1. **Detect** — when a user analyzes a wallet, the detector checks that
+   wallet's recent buys against the first-buyer cohorts of each token. Any
+   OTHER wallet that consistently bought the same tokens shortly before it
+   (across ≥2 tokens within 2h) is tagged as a "leader" — i.e. the wallet
+   this wallet is copying.
+2. **Trace** — same analysis walks Helius parsed history backwards to the
+   OLDEST incoming native SOL transfer. That sender is the wallet's funder
+   (unless it's a known CEX hot wallet, which ends the trace).
+3. **Register** — every (funder → wallet) relationship is recorded in the
+   bad-actor registry. When that wallet is confirmed as a copycat, the
+   funder's `copycatCount` increments.
+4. **Flag** — once a funder has funded 3+ confirmed copycats, it's
+   auto-flagged. Flagged funders appear on `/bad-actors` and get a red
+   badge everywhere their address surfaces.
+5. **Cluster** — from the flagged funder, users can see every wallet it
+   funded and click through, letting us surface the entire cluster of
+   related wallets operating from the same source.
+
+This turns the portal from a passive analytics tool into an active
+counter-intelligence surface against repeat bad actors.
 
 ## Tier gating (proposed)
 
