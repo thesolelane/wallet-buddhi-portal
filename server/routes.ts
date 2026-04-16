@@ -15,6 +15,19 @@ import { runWalletAnalyst } from "./wallet-analyst-service";
 import { getConstellation } from "./constellation-service";
 import { getKinshipHistory } from "./kinship-history-service";
 import { getAllFlaggedActors, getRegistrySnapshot } from "./bad-actor-registry";
+import {
+  recordSniper,
+  recordBump,
+  recordLeader,
+  recordTraderSnapshot,
+  recordPair,
+  getRepeatSnipers,
+  getBumpOperators,
+  getCopycatLeaders,
+  getProfitableTraders,
+  getPersistentPairs,
+  getRegistryCounts,
+} from "./session-registry";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
 
@@ -276,6 +289,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid Solana address" });
       }
       const result = await analyzeCopycat(address);
+
+      // Feed session registry: each detected leader gets an observation
+      if (result.ok) {
+        const now = Math.floor(Date.now() / 1000);
+        for (const l of result.leaders) {
+          recordLeader({
+            leader: l.leader,
+            follower: address,
+            sharedTokens: l.samples.map((s) => s.tokenMint),
+            avgLagSec: l.avgLagSec,
+            timestamp: now,
+          });
+        }
+      }
+
       return res.json(result);
     } catch (error) {
       console.error("Copycat analysis error:", error);
@@ -292,6 +320,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // --- Leaderboards ---
+  app.get("/api/leaderboards", (_req, res) => {
+    return res.json({
+      counts: getRegistryCounts(),
+      snipers: getRepeatSnipers(),
+      bumps: getBumpOperators(),
+      leaders: getCopycatLeaders(),
+      traders: getProfitableTraders(),
+      pairs: getPersistentPairs(),
+      flaggedFunders: getAllFlaggedActors(),
+      fetchedAt: Date.now(),
+    });
+  });
+
   // --- Wallet activity (companion core) ---
   app.get("/api/wallet/:address/activity", async (req, res) => {
     try {
@@ -301,6 +343,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 300);
       const result = await getWalletActivity(address, limit);
+
+      // Feed session registry: compute per-token realized SOL
+      if (result.ok) {
+        const byToken = new Map<string, { in: number; out: number }>();
+        for (const s of result.swaps) {
+          if (s.quoteSymbol !== "SOL") continue;
+          const row = byToken.get(s.tokenMint) ?? { in: 0, out: 0 };
+          if (s.direction === "buy") row.in += s.quoteAmount;
+          else if (s.direction === "sell") row.out += s.quoteAmount;
+          byToken.set(s.tokenMint, row);
+        }
+        let realized = 0;
+        let winners = 0;
+        let losers = 0;
+        for (const r of Array.from(byToken.values())) {
+          const delta = r.out - r.in;
+          realized += delta;
+          if (delta > 0.001) winners += 1;
+          else if (delta < -0.001) losers += 1;
+        }
+        recordTraderSnapshot({
+          wallet: address,
+          realizedSol: realized,
+          tokensTraded: Array.from(byToken.keys()),
+          winningTokenCount: winners,
+          losingTokenCount: losers,
+          timestamp: Math.floor(Date.now() / 1000),
+        });
+      }
+
       return res.json(result);
     } catch (error) {
       console.error("Wallet activity error:", error);
@@ -370,6 +442,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid Solana address" });
       }
       const result = await getKinshipHistory(ca);
+
+      // Feed session registry: each pair gets recorded
+      if (result.ok) {
+        const now = Math.floor(Date.now() / 1000);
+        for (const p of result.pairs) {
+          recordPair({
+            walletA: p.walletA,
+            walletB: p.walletB,
+            score: p.score,
+            sharedTokens: p.sharedTokens,
+            sharedCounterparties: p.sharedCounterparties,
+            directTransfers: p.directTransfers.length,
+            timestamp: now,
+          });
+        }
+      }
+
       return res.json(result);
     } catch (error) {
       console.error("Kinship history error:", error);
@@ -387,6 +476,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid Solana address" });
       }
       const result = await detectBumpBots(ca);
+
+      // Feed session registry
+      for (const w of result.suspectWallets) {
+        recordBump({
+          wallet: w.wallet,
+          ca,
+          feesSol: w.totalFeesSol,
+          roundTrips: Math.min(w.buys, w.sells),
+          lastSeen: w.lastSeen,
+        });
+      }
+
       return res.json(result);
     } catch (error) {
       console.error("Error detecting bump bots:", error);
@@ -413,6 +514,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const holderSet = new Set(holdersResult.holders.map((h) => h.owner));
       const cohort = classifyCohort(buyersResult.buyers, holderSet);
+
+      // Feed session registry for leaderboards
+      const nowSec = Math.floor(Date.now() / 1000);
+      for (const c of cohort) {
+        if (c.isSniper) {
+          recordSniper({
+            wallet: c.wallet,
+            ca,
+            priorityFeeSol: c.priorityFeeSol,
+            jitoTipSol: c.jitoTipSol,
+            stillHolding: c.state === "holding",
+            timestamp: c.timestamp || nowSec,
+          });
+        }
+      }
 
       return res.json({
         ...buyersResult,
