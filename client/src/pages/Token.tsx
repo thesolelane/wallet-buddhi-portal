@@ -10,6 +10,42 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
 
+interface TwitterMetrics {
+  handle: string;
+  verified: boolean;
+  followers: number;
+  following: number;
+  tweetCount: number;
+  accountCreatedAt: number;
+  accountAgeDays: number;
+}
+
+interface TelegramMetrics {
+  username: string;
+  title: string | null;
+  subscribers: number;
+  participantsCount: number | null;
+}
+
+interface SocialReport {
+  ca: string;
+  twitter: {
+    configured: boolean;
+    ok: boolean;
+    handle: string | null;
+    metrics: TwitterMetrics | null;
+    reason?: string;
+  };
+  telegram: {
+    configured: boolean;
+    ok: boolean;
+    username: string | null;
+    metrics: TelegramMetrics | null;
+    reason?: string;
+  };
+  fetchedAt: number;
+}
+
 interface BumpWallet {
   wallet: string;
   buys: number;
@@ -183,6 +219,11 @@ export default function Token() {
 
   const { data: bump, isLoading: bumpLoading } = useQuery<BumpReport>({
     queryKey: [`/api/token/${ca}/bump-report`],
+    enabled: !!ca,
+  });
+
+  const { data: social } = useQuery<SocialReport>({
+    queryKey: [`/api/token/${ca}/social`],
     enabled: !!ca,
   });
 
@@ -503,6 +544,56 @@ export default function Token() {
               </CardContent>
             </Card>
 
+            {/* Social metrics */}
+            {social && (social.twitter.configured || social.telegram.configured || social.twitter.handle || social.telegram.username) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    Social Metrics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <SocialRow
+                    platform="Twitter"
+                    icon={<FaTwitter className="w-4 h-4" />}
+                    configured={social.twitter.configured}
+                    ok={social.twitter.ok}
+                    reason={social.twitter.reason}
+                    handle={social.twitter.handle}
+                    envKey="TWITTER_API_KEY"
+                    metrics={
+                      social.twitter.metrics
+                        ? [
+                            { label: "Followers", value: social.twitter.metrics.followers.toLocaleString() },
+                            { label: "Tweets", value: social.twitter.metrics.tweetCount.toLocaleString() },
+                            { label: "Age", value: `${social.twitter.metrics.accountAgeDays}d` },
+                            { label: "Verified", value: social.twitter.metrics.verified ? "✓" : "—" },
+                          ]
+                        : null
+                    }
+                  />
+                  <SocialRow
+                    platform="Telegram"
+                    icon={<FaTelegram className="w-4 h-4" />}
+                    configured={social.telegram.configured}
+                    ok={social.telegram.ok}
+                    reason={social.telegram.reason}
+                    handle={social.telegram.username}
+                    envKey="TGSTAT_API_KEY"
+                    metrics={
+                      social.telegram.metrics
+                        ? [
+                            { label: "Subscribers", value: social.telegram.metrics.subscribers.toLocaleString() },
+                            { label: "Title", value: social.telegram.metrics.title ?? "—" },
+                          ]
+                        : null
+                    }
+                  />
+                </CardContent>
+              </Card>
+            )}
+
             {/* Source / freshness */}
             <p className="text-xs text-muted-foreground text-right">
               Sources:{" "}
@@ -549,6 +640,62 @@ function CohortGrid({ buyers }: { buyers: CohortBuyer[] }) {
           />
         );
       })}
+    </div>
+  );
+}
+
+function SocialRow({
+  platform,
+  icon,
+  configured,
+  ok,
+  reason,
+  handle,
+  envKey,
+  metrics,
+}: {
+  platform: string;
+  icon: React.ReactNode;
+  configured: boolean;
+  ok: boolean;
+  reason?: string;
+  handle: string | null;
+  envKey: string;
+  metrics: Array<{ label: string; value: string }> | null;
+}) {
+  return (
+    <div className="flex items-start gap-3 text-sm">
+      <div className="pt-0.5">{icon}</div>
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{platform}</span>
+          {handle && <span className="text-xs font-mono text-muted-foreground">@{handle}</span>}
+          {!configured && (
+            <Badge variant="outline" className="text-xs">
+              unconfigured
+            </Badge>
+          )}
+        </div>
+        {ok && metrics && (
+          <div className="flex gap-4 mt-1 text-xs">
+            {metrics.map((m) => (
+              <div key={m.label}>
+                <span className="text-muted-foreground">{m.label}: </span>
+                <span className="font-mono">{m.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {!ok && (
+          <p className="text-xs text-muted-foreground mt-1">
+            {!configured ? (
+              <>Set <code>{envKey}</code> in .env to enable</>
+            ) : (
+              reason || "Fetch failed"
+            )}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

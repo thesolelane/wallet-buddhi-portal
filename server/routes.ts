@@ -8,6 +8,7 @@ import { getTopHolders } from "./holders-service";
 import { getFirstBuyers, classifyCohort } from "./buyers-service";
 import { detectBumpBots } from "./bump-detector";
 import { runAnalyst } from "./analyst-service";
+import { getSocialReport } from "./social";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
 
@@ -240,6 +241,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Ollama complete error:", error);
       return res.status(500).json({
         error: error instanceof Error ? error.message : "LLM call failed",
+      });
+    }
+  });
+
+  // --- Phase F: social layer (Twitter + Telegram metrics) ---
+  app.get("/api/token/:ca/social", async (req, res) => {
+    try {
+      const { ca } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(ca)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const result = await getSocialReport(ca);
+      return res.json(result);
+    } catch (error) {
+      console.error("Social report error:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to fetch social report",
       });
     }
   });
