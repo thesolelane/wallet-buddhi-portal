@@ -13,6 +13,7 @@ import { getWalletActivity } from "./wallet-service";
 import { analyzeCopycat } from "./copycat-detector";
 import { runWalletAnalyst } from "./wallet-analyst-service";
 import { getConstellation } from "./constellation-service";
+import { getKinshipHistory } from "./kinship-history-service";
 import { getAllFlaggedActors, getRegistrySnapshot } from "./bad-actor-registry";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
@@ -344,7 +345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // --- Wallet Constellation (cluster graph for a token) ---
+  // --- Kinship graph (cluster graph for a token) ---
   app.get("/api/token/:ca/constellation", async (req, res) => {
     try {
       const { ca } = req.params;
@@ -354,9 +355,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await getConstellation(ca);
       return res.json(result);
     } catch (error) {
-      console.error("Constellation error:", error);
+      console.error("Kinship graph error:", error);
       return res.status(500).json({
-        error: error instanceof Error ? error.message : "Failed to build constellation",
+        error: error instanceof Error ? error.message : "Failed to build kinship graph",
+      });
+    }
+  });
+
+  // --- Kinship history (90-day cross-token rescan) ---
+  app.get("/api/token/:ca/kinship-history", async (req, res) => {
+    try {
+      const { ca } = req.params;
+      if (!SOLANA_ADDRESS_RE.test(ca)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const result = await getKinshipHistory(ca);
+      return res.json(result);
+    } catch (error) {
+      console.error("Kinship history error:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed kinship history",
       });
     }
   });

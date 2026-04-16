@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, History, Loader2 } from "lucide-react";
 
 type WalletRole =
   | "dev"
@@ -67,6 +67,31 @@ interface ConstellationReport {
   reason?: string;
 }
 
+type KinshipLinkType = "sharedToken" | "sharedCounterparty" | "directTransfer";
+
+interface KinshipPair {
+  walletA: string;
+  walletB: string;
+  score: number;
+  linkCount: number;
+  linkTypes: KinshipLinkType[];
+  sharedTokens: string[];
+  sharedCounterparties: string[];
+  directTransfers: Array<{ from: string; to: string; signature: string; ts: number }>;
+  firstSeen: number;
+  lastSeen: number;
+}
+
+interface KinshipHistoryReport {
+  ca: string;
+  scannedWallets: number;
+  windowDays: number;
+  pairs: KinshipPair[];
+  fetchedAt: number;
+  ok: boolean;
+  reason?: string;
+}
+
 const ROLE_ORBITS: Record<WalletRole, { radius: number; label: string; color: string }> = {
   dev:           { radius: 80,  label: "Dev / Authority", color: "#a855f7" },
   earlyCohort:   { radius: 150, label: "First cohort",    color: "#14f195" },
@@ -117,6 +142,14 @@ export default function Constellation() {
     queryKey: [`/api/token/${ca}/constellation`],
     enabled: !!ca,
   });
+
+  // Kinship history is opt-in (slow scan), fetched on button click
+  const [historyRequested, setHistoryRequested] = useState(false);
+  const { data: history, isFetching: historyLoading } =
+    useQuery<KinshipHistoryReport>({
+      queryKey: [`/api/token/${ca}/kinship-history`],
+      enabled: !!ca && historyRequested,
+    });
 
   // Compute positions for every node
   const layout = useMemo(() => {
@@ -170,7 +203,7 @@ export default function Constellation() {
           <div className="flex-1">
             <h1 className="text-xl font-bold flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
-              Wallet Constellation
+              Kinship Graph
               {data && (
                 <span className="text-sm font-normal text-muted-foreground">
                   · {data.tokenName ?? shorten(ca ?? "")}{" "}
@@ -181,8 +214,24 @@ export default function Constellation() {
             <p className="text-xs text-muted-foreground mt-1">
               Radial view of every wallet connected to this token. Inner ring = closest to the token.
               Lines = funding or copycat relationships. Cluster tint = same funder.
+              Run the 90-day rescan to reveal persistent ties across other tokens.
             </p>
           </div>
+          <Button
+            size="sm"
+            variant={history?.ok ? "default" : "outline"}
+            onClick={() => setHistoryRequested(true)}
+            disabled={historyLoading || !data?.ok}
+          >
+            {historyLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <History className="w-4 h-4" />
+            )}
+            {history?.ok
+              ? `${history.pairs.length} historical ties`
+              : "Scan 90d kinship"}
+          </Button>
         </div>
 
         {isLoading && <Skeleton className="h-[600px] w-full" />}
@@ -241,6 +290,38 @@ export default function Constellation() {
                       </g>
                     );
                   })}
+
+                  {/* Historical kinship edges — rendered first (behind everything else).
+                      Line style encodes the strongest link type:
+                        direct transfer = solid red-amber, highest weight
+                        shared counterparty = amber dashed
+                        shared token only = amber dotted */}
+                  {history?.ok &&
+                    history.pairs.map((p, i) => {
+                      const a = layout.positions.get(p.walletA);
+                      const b = layout.positions.get(p.walletB);
+                      if (!a || !b) return null;
+                      const active =
+                        activeWallet === p.walletA || activeWallet === p.walletB;
+                      const isDirect = p.linkTypes.includes("directTransfer");
+                      const hasCp = p.linkTypes.includes("sharedCounterparty");
+                      const width = Math.min(3.5, 0.8 + p.score * 0.3);
+                      const stroke = isDirect ? "#dc2626" : "#fbbf24";
+                      const dash = isDirect ? "" : hasCp ? "6 4" : "2 4";
+                      return (
+                        <line
+                          key={`hist-${i}`}
+                          x1={a.x}
+                          y1={a.y}
+                          x2={b.x}
+                          y2={b.y}
+                          stroke={stroke}
+                          strokeWidth={width}
+                          strokeOpacity={active ? 0.9 : 0.45}
+                          strokeDasharray={dash}
+                        />
+                      );
+                    })}
 
                   {/* Edges */}
                   {data.edges.map((edge, i) => {
@@ -379,6 +460,9 @@ export default function Constellation() {
                     <p>— Grey line: funding</p>
                     <p>— Red dashed: copycat</p>
                     <p>— Colored: shared-funder cluster</p>
+                    <p>— <span className="text-red-600">Red solid: direct transfer (A↔B)</span></p>
+                    <p>— <span className="text-amber-500">Amber dashed: shared counterparty</span></p>
+                    <p>— <span className="text-amber-500">Amber dotted: shared token (90d)</span></p>
                     <p>— Double dot = multi-role wallet</p>
                     <p>— Red ring = flagged funder</p>
                   </div>
@@ -449,6 +533,115 @@ export default function Constellation() {
                     <Button size="sm" className="w-full mt-2" onClick={() => navigate(`/wallet/${activeNode.wallet}`)}>
                       Open wallet page
                     </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Historical kinship pairs */}
+              {history?.ok && history.pairs.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+                      <History className="w-3 h-3" />
+                      Historical Ties (last {history.windowDays}d)
+                      <span className="ml-auto">{history.pairs.length} pairs</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-1.5 text-xs">
+                    {history.pairs.slice(0, 10).map((p, i) => {
+                      const isDirect = p.linkTypes.includes("directTransfer");
+                      return (
+                        <div
+                          key={i}
+                          className={`p-2 rounded border space-y-1 ${
+                            isDirect
+                              ? "border-red-600/40 bg-red-600/5"
+                              : "border-amber-500/30 bg-amber-500/5"
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setSelectedWallet(p.walletA)}
+                              className="font-mono text-[11px] hover:text-primary"
+                            >
+                              {shorten(p.walletA, 4, 3)}
+                            </button>
+                            <span className="text-muted-foreground">↔</span>
+                            <button
+                              onClick={() => setSelectedWallet(p.walletB)}
+                              className="font-mono text-[11px] hover:text-primary"
+                            >
+                              {shorten(p.walletB, 4, 3)}
+                            </button>
+                            <span className={`ml-auto ${isDirect ? "text-red-600" : "text-amber-500"}`}>
+                              score {p.score}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                            {p.linkTypes.map((t) => (
+                              <span key={t} className="px-1 py-0.5 rounded border border-border">
+                                {t === "directTransfer" && `direct (${p.directTransfers.length})`}
+                                {t === "sharedCounterparty" &&
+                                  `shared cp (${p.sharedCounterparties.length})`}
+                                {t === "sharedToken" &&
+                                  `shared tokens (${p.sharedTokens.length})`}
+                              </span>
+                            ))}
+                          </div>
+                          {p.sharedTokens.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {p.sharedTokens.slice(0, 5).map((t) => (
+                                <button
+                                  key={t}
+                                  onClick={() => navigate(`/token/${t}`)}
+                                  className="font-mono text-[9px] px-1 py-0.5 rounded border border-amber-500/20 hover:border-amber-500 hover:text-amber-500"
+                                  title={t}
+                                >
+                                  {shorten(t, 3, 2)}
+                                </button>
+                              ))}
+                              {p.sharedTokens.length > 5 && (
+                                <span className="text-[9px] text-muted-foreground">
+                                  +{p.sharedTokens.length - 5}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {p.sharedCounterparties.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {p.sharedCounterparties.slice(0, 5).map((cp) => (
+                                <button
+                                  key={cp}
+                                  onClick={() => navigate(`/wallet/${cp}`)}
+                                  className="font-mono text-[9px] px-1 py-0.5 rounded border border-border hover:border-primary"
+                                  title={`Shared counterparty ${cp}`}
+                                >
+                                  {shorten(cp, 3, 2)}
+                                </button>
+                              ))}
+                              {p.sharedCounterparties.length > 5 && (
+                                <span className="text-[9px] text-muted-foreground">
+                                  +{p.sharedCounterparties.length - 5}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {history.pairs.length > 10 && (
+                      <p className="text-[10px] text-muted-foreground pt-1">
+                        …and {history.pairs.length - 10} more pairs
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {history && !history.ok && (
+                <Card>
+                  <CardContent className="pt-4 pb-4 text-xs text-muted-foreground">
+                    Kinship scan failed: {history.reason}
                   </CardContent>
                 </Card>
               )}

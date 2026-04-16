@@ -296,16 +296,15 @@ export default function Token() {
             {/* Health pills — synthesize all signals at the top */}
             <HealthPills data={data} holders={holders} buyers={buyers} bump={bump} />
 
-            {/* Constellation link */}
+            {/* Kinship Graph link */}
             <Card className="border-primary/20 bg-primary/5">
               <CardContent className="pt-6 flex items-center gap-3">
                 <Orbit className="w-5 h-5 text-primary" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium">Wallet Constellation</p>
+                  <p className="text-sm font-medium">Kinship Graph</p>
                   <p className="text-xs text-muted-foreground">
-                    Radial view of every wallet connected to this token — dev, cohort, holders,
-                    snipers, bumpers, copycat leaders, funders — with connection lines revealing
-                    who is tied to whom.
+                    Radial view of every wallet connected to this token. Run the 90-day rescan
+                    from inside the page to reveal persistent ties across other tokens.
                   </p>
                 </div>
                 <Button size="sm" onClick={() => navigate(`/token/${data.ca}/constellation`)}>
