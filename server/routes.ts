@@ -36,6 +36,18 @@ import {
 import { checkTokenIdentity } from "./token-copycat-service";
 import { ollamaProvider } from "./llm/ollama-client";
 import { z } from "zod";
+import { randomInt } from "crypto";
+
+const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
+const VERIFICATION_CODE_MAX_ATTEMPTS = 10;
+
+const generateVerificationSchema = z.object({
+  walletAddress: z.string(),
+});
+
+const validateVerificationSchema = z.object({
+  code: z.string().regex(/^\d{6}$/),
+});
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
@@ -238,6 +250,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching payment status:", error);
       return res.status(500).json({ 
         error: "Failed to fetch payment status" 
+      });
+    }
+  });
+
+  // --- Mobile verification codes ---
+  app.post("/api/verification/generate", async (req, res) => {
+    try {
+      const { walletAddress } = generateVerificationSchema.parse(req.body);
+      if (!SOLANA_ADDRESS_RE.test(walletAddress)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+
+      const existing = await storage.getVerificationCodesByWallet(walletAddress);
+      for (const vc of existing) {
+        if (vc.status === "pending") {
+          await storage.updateVerificationCode(vc.code, { status: "invalidated" });
+        }
+      }
+
+      let code = "";
+      for (let i = 0; i < VERIFICATION_CODE_MAX_ATTEMPTS; i++) {
+        const candidate = String(randomInt(0, 1_000_000)).padStart(6, "0");
+        if (!(await storage.getVerificationCode(candidate))) {
+          code = candidate;
+          break;
+        }
+      }
+      if (!code) {
+        return res.status(503).json({ error: "Could not allocate verification code" });
+      }
+
+      const expiresAt = new Date(Date.now() + VERIFICATION_CODE_TTL_MS);
+      await storage.createVerificationCode({
+        code,
+        walletAddress,
+        status: "pending",
+        expiresAt,
+        assignedSubdomain: null,
+      });
+
+      return res.json({ code, expiresAt });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request data", details: error.errors });
+      }
+      console.error("Error generating verification code:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to generate verification code",
+      });
+    }
+  });
+
+  app.post("/api/verification/validate", async (req, res) => {
+    try {
+      const { code } = validateVerificationSchema.parse(req.body);
+
+      const vc = await storage.getVerificationCode(code);
+      if (!vc || vc.status !== "pending" || vc.expiresAt.getTime() <= Date.now()) {
+        return res.status(400).json({ valid: false, error: "Invalid or expired code" });
+      }
+
+      const assignedSubdomain = `${vc.walletAddress.slice(0, 4).toLowerCase()}.wbuddhi.sol`;
+      await storage.updateVerificationCode(code, {
+        status: "used",
+        usedAt: new Date(),
+        assignedSubdomain,
+      });
+
+      return res.json({
+        valid: true,
+        walletAddress: vc.walletAddress,
+        assignedSubdomain,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request data", details: error.errors });
+      }
+      console.error("Error validating verification code:", error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to validate verification code",
       });
     }
   });

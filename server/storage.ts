@@ -1,14 +1,20 @@
-import { 
-  type User, 
+import {
+  type User,
   type InsertUser,
   type WalletAccount,
   type InsertWalletAccount,
   type PaymentTransaction,
   type InsertPaymentTransaction,
   type VerificationCode,
-  type InsertVerificationCode
+  type InsertVerificationCode,
+  users,
+  walletAccounts,
+  paymentTransactions,
+  verificationCodes
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -156,4 +162,97 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DbStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return rows[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const rows = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    return rows[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const rows = await db.insert(users).values(insertUser).returning();
+    return rows[0];
+  }
+
+  async getWalletAccount(walletAddress: string): Promise<WalletAccount | undefined> {
+    const rows = await db.select().from(walletAccounts).where(eq(walletAccounts.walletAddress, walletAddress)).limit(1);
+    return rows[0];
+  }
+
+  async createWalletAccount(insertAccount: InsertWalletAccount): Promise<WalletAccount> {
+    const rows = await db.insert(walletAccounts).values({
+      ...insertAccount,
+      tier: insertAccount.tier || "basic",
+    }).returning();
+    return rows[0];
+  }
+
+  async updateWalletTier(walletAddress: string, tier: string): Promise<WalletAccount | undefined> {
+    const rows = await db.update(walletAccounts)
+      .set({ tier })
+      .where(eq(walletAccounts.walletAddress, walletAddress))
+      .returning();
+    return rows[0];
+  }
+
+  async getPaymentTransaction(referenceKey: string): Promise<PaymentTransaction | undefined> {
+    const rows = await db.select().from(paymentTransactions).where(eq(paymentTransactions.referenceKey, referenceKey)).limit(1);
+    return rows[0];
+  }
+
+  async createPaymentTransaction(insertTransaction: InsertPaymentTransaction): Promise<PaymentTransaction> {
+    const rows = await db.insert(paymentTransactions).values({
+      ...insertTransaction,
+      status: insertTransaction.status || "pending",
+    }).returning();
+    return rows[0];
+  }
+
+  async updatePaymentTransaction(
+    referenceKey: string,
+    updates: Partial<PaymentTransaction>
+  ): Promise<PaymentTransaction | undefined> {
+    const { id, createdAt, ...safe } = updates as any;
+    const rows = await db.update(paymentTransactions)
+      .set(safe)
+      .where(eq(paymentTransactions.referenceKey, referenceKey))
+      .returning();
+    return rows[0];
+  }
+
+  async getVerificationCode(code: string): Promise<VerificationCode | undefined> {
+    const rows = await db.select().from(verificationCodes).where(eq(verificationCodes.code, code)).limit(1);
+    return rows[0];
+  }
+
+  async getVerificationCodesByWallet(walletAddress: string): Promise<VerificationCode[]> {
+    return await db.select().from(verificationCodes).where(eq(verificationCodes.walletAddress, walletAddress));
+  }
+
+  async createVerificationCode(insertCode: InsertVerificationCode): Promise<VerificationCode> {
+    const rows = await db.insert(verificationCodes).values({
+      ...insertCode,
+      status: insertCode.status || "pending",
+      assignedSubdomain: insertCode.assignedSubdomain ?? null,
+    }).returning();
+    return rows[0];
+  }
+
+  async updateVerificationCode(
+    code: string,
+    updates: Partial<VerificationCode>
+  ): Promise<VerificationCode | undefined> {
+    const { id, createdAt, ...safe } = updates as any;
+    const rows = await db.update(verificationCodes)
+      .set(safe)
+      .where(eq(verificationCodes.code, code))
+      .returning();
+    return rows[0];
+  }
+}
+
+export const storage = new DbStorage();
