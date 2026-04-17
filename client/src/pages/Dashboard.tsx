@@ -8,6 +8,7 @@ import { Plus, TrendingUp, Shield, Wallet as WalletIcon, ArrowLeft, Bot } from "
 import { useWallet } from "@/lib/wallet-context-new";
 import { WatchedTokens } from "@/components/WatchedTokens";
 import { ProtectedTokens } from "@/components/ProtectedTokens";
+import { VerificationCodeCard } from "@/components/VerificationCodeCard";
 
 type BotStatus = "active" | "inactive";
 
@@ -148,6 +149,7 @@ export default function Dashboard() {
 
             <WatchedTokens />
             <ProtectedTokens />
+            <VerificationCodeCard />
 
             <Card className="border-primary/20">
               <CardHeader>
