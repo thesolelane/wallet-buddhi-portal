@@ -1,7 +1,20 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, decimal, boolean } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  varchar,
+  timestamp,
+  decimal,
+  boolean,
+  doublePrecision,
+  jsonb,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// ============================================================
+// Existing tables (kept for compatibility)
+// ============================================================
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -71,3 +84,135 @@ export const insertVerificationCodeSchema = createInsertSchema(verificationCodes
 
 export type InsertVerificationCode = z.infer<typeof insertVerificationCodeSchema>;
 export type VerificationCode = typeof verificationCodes.$inferSelect;
+
+// ============================================================
+// Core monitoring tables (MVP)
+// ============================================================
+
+/**
+ * Wallets that users have chosen to watch.
+ * ownerPubkey = the connected user who added this watch entry.
+ * pubkey     = the Solana address being monitored.
+ */
+export const watchedWallets = pgTable("watched_wallets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerPubkey: text("owner_pubkey").notNull(), // who is watching
+  pubkey: text("pubkey").notNull(),            // address being watched
+  label: text("label"),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+});
+
+export const insertWatchedWalletSchema = createInsertSchema(watchedWallets).omit({
+  id: true,
+  addedAt: true,
+});
+
+export type InsertWatchedWallet = z.infer<typeof insertWatchedWalletSchema>;
+export type WatchedWallet = typeof watchedWallets.$inferSelect;
+
+/**
+ * Tokens observed in a watched wallet (the registry used for copycat detection).
+ */
+export const purchasedTokens = pgTable("purchased_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  watchedWalletId: varchar("watched_wallet_id")
+    .notNull()
+    .references(() => watchedWallets.id, { onDelete: "cascade" }),
+  mint: text("mint").notNull(),
+  symbol: text("symbol"),
+  name: text("name"),
+  marketCapUsd: doublePrecision("market_cap_usd"),
+  priceUsd: doublePrecision("price_usd"),
+  website: text("website"),
+  twitter: text("twitter"),
+  telegram: text("telegram"),
+  discord: text("discord"),
+  imageUrl: text("image_url"),
+  creator: text("creator"),
+  updateAuthority: text("update_authority"),
+  isPumpFun: boolean("is_pump_fun").notNull().default(false),
+  sources: jsonb("sources").$type<string[]>().default([]),
+  purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
+});
+
+export const insertPurchasedTokenSchema = createInsertSchema(purchasedTokens).omit({
+  id: true,
+  purchasedAt: true,
+});
+
+export type InsertPurchasedToken = z.infer<typeof insertPurchasedTokenSchema>;
+export type PurchasedToken = typeof purchasedTokens.$inferSelect;
+
+/**
+ * Copycat / spam alerts generated when a new token looks like an impersonation
+ * of something already held in the watched wallet.
+ */
+export const alerts = pgTable("alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  watchedWalletId: varchar("watched_wallet_id")
+    .notNull()
+    .references(() => watchedWallets.id, { onDelete: "cascade" }),
+  newMint: text("new_mint").notNull(),
+  newSymbol: text("new_symbol"),
+  newName: text("new_name"),
+  matchedTokenId: text("matched_token_id"),
+  matchedMint: text("matched_mint"),
+  matchedSymbol: text("matched_symbol"),
+  matchedName: text("matched_name"),
+  signals: jsonb("signals").$type<Signal[]>().notNull().default([]),
+  verdict: text("verdict").notNull(), // 'SUSPICIOUS' | 'DANGER'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  dismissedAt: timestamp("dismissed_at"),
+});
+
+export const insertAlertSchema = createInsertSchema(alerts).omit({
+  id: true,
+  createdAt: true,
+  dismissedAt: true,
+});
+
+export type InsertAlert = z.infer<typeof insertAlertSchema>;
+export type Alert = typeof alerts.$inferSelect;
+
+// ============================================================
+// Shared types for copycat engine
+// ============================================================
+
+export const signalTypeSchema = z.enum([
+  "ticker_exact",
+  "ticker_fuzzy",
+  "name_fuzzy",
+  "social_overlap",
+  "creator_match",
+  "update_authority_match",
+  "pump_fun_clone",
+]);
+export type SignalType = z.infer<typeof signalTypeSchema>;
+
+export const signalSchema = z.object({
+  type: signalTypeSchema,
+  confidence: z.number().min(0).max(1),
+  detail: z.string(),
+});
+export type Signal = z.infer<typeof signalSchema>;
+
+export const verdictSchema = z.enum(["SUSPICIOUS", "DANGER"]);
+export type Verdict = z.infer<typeof verdictSchema>;
+
+export const tokenMetadataSchema = z.object({
+  mint: z.string(),
+  symbol: z.string().nullable(),
+  name: z.string().nullable(),
+  marketCapUsd: z.number().nullable(),
+  priceUsd: z.number().nullable(),
+  website: z.string().nullable(),
+  twitter: z.string().nullable(),
+  telegram: z.string().nullable(),
+  discord: z.string().nullable(),
+  imageUrl: z.string().nullable(),
+  creator: z.string().nullable(),
+  updateAuthority: z.string().nullable(),
+  isPumpFun: z.boolean().optional(),
+  sources: z.array(z.string()),
+});
+export type TokenMetadata = z.infer<typeof tokenMetadataSchema>;
