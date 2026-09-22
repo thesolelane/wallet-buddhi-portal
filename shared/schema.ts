@@ -8,13 +8,10 @@ import {
   boolean,
   doublePrecision,
   jsonb,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-
-// ============================================================
-// Existing tables (kept for compatibility)
-// ============================================================
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -85,22 +82,22 @@ export const insertVerificationCodeSchema = createInsertSchema(verificationCodes
 export type InsertVerificationCode = z.infer<typeof insertVerificationCodeSchema>;
 export type VerificationCode = typeof verificationCodes.$inferSelect;
 
-// ============================================================
-// Core monitoring tables (MVP)
-// ============================================================
-
-/**
- * Wallets that users have chosen to watch.
- * ownerPubkey = the connected user who added this watch entry.
- * pubkey     = the Solana address being monitored.
- */
-export const watchedWallets = pgTable("watched_wallets", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  ownerPubkey: text("owner_pubkey").notNull(), // who is watching
-  pubkey: text("pubkey").notNull(),            // address being watched
-  label: text("label"),
-  addedAt: timestamp("added_at").defaultNow().notNull(),
-});
+export const watchedWallets = pgTable(
+  "watched_wallets",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    ownerPubkey: text("owner_pubkey").notNull(),
+    pubkey: text("pubkey").notNull(),
+    label: text("label"),
+    addedAt: timestamp("added_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    ownerTargetUnique: uniqueIndex("watched_wallets_owner_pubkey_unique").on(
+      table.ownerPubkey,
+      table.pubkey,
+    ),
+  }),
+);
 
 export const insertWatchedWalletSchema = createInsertSchema(watchedWallets).omit({
   id: true,
@@ -110,9 +107,6 @@ export const insertWatchedWalletSchema = createInsertSchema(watchedWallets).omit
 export type InsertWatchedWallet = z.infer<typeof insertWatchedWalletSchema>;
 export type WatchedWallet = typeof watchedWallets.$inferSelect;
 
-/**
- * Tokens observed in a watched wallet (the registry used for copycat detection).
- */
 export const purchasedTokens = pgTable("purchased_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   watchedWalletId: varchar("watched_wallet_id")
@@ -143,10 +137,6 @@ export const insertPurchasedTokenSchema = createInsertSchema(purchasedTokens).om
 export type InsertPurchasedToken = z.infer<typeof insertPurchasedTokenSchema>;
 export type PurchasedToken = typeof purchasedTokens.$inferSelect;
 
-/**
- * Copycat / spam alerts generated when a new token looks like an impersonation
- * of something already held in the watched wallet.
- */
 export const alerts = pgTable("alerts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   watchedWalletId: varchar("watched_wallet_id")
@@ -160,7 +150,7 @@ export const alerts = pgTable("alerts", {
   matchedSymbol: text("matched_symbol"),
   matchedName: text("matched_name"),
   signals: jsonb("signals").$type<Signal[]>().notNull().default([]),
-  verdict: text("verdict").notNull(), // 'SUSPICIOUS' | 'DANGER'
+  verdict: text("verdict").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   dismissedAt: timestamp("dismissed_at"),
 });
@@ -173,10 +163,6 @@ export const insertAlertSchema = createInsertSchema(alerts).omit({
 
 export type InsertAlert = z.infer<typeof insertAlertSchema>;
 export type Alert = typeof alerts.$inferSelect;
-
-// ============================================================
-// Shared types for copycat engine
-// ============================================================
 
 export const signalTypeSchema = z.enum([
   "ticker_exact",
