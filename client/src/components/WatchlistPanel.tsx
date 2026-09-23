@@ -25,12 +25,20 @@ export function WatchlistPanel() {
   const [, navigate] = useLocation();
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [helius, setHelius] = useState<boolean | null>(null);
   const [pubkey, setPubkey] = useState("");
   const [label, setLabel] = useState("");
   const [wallets, setWallets] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tokens, setTokens] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/health/data-sources")
+      .then((res) => res.json())
+      .then((data) => setHelius(Boolean(data.helius)))
+      .catch(() => setHelius(null));
+  }, []);
 
   async function withSession<T>(fn: () => Promise<T>): Promise<T | undefined> {
     if (!connected || !address || !signMessage) {
@@ -108,13 +116,24 @@ export function WatchlistPanel() {
   }
 
   async function scan(id?: string) {
+    if (helius === false) {
+      toast({
+        title: "Scan needs Helius",
+        description: "Add HELIUS_API_KEY in Replit Secrets, then restart. You can still add wallets.",
+      });
+      return;
+    }
     await withSession(async () => {
       const path = id ? `/api/wallets/${id}/scan` : "/api/wallets/scan";
       const res = await apiRequest("POST", path);
       const summary = await res.json();
+      const errors = summary.errors as string[] | undefined;
+      const missingKey = errors?.some((e) => String(e).includes("HELIUS_API_KEY"));
       toast({
-        title: "Scan complete",
-        description: `New tokens ${summary.newTokens ?? 0} · alerts ${summary.alerts ?? 0}`,
+        title: missingKey ? "Scan needs Helius" : "Scan complete",
+        description: missingKey
+          ? "Add HELIUS_API_KEY in Replit Secrets, then restart."
+          : `New tokens ${summary.newTokens ?? 0} · alerts ${summary.alerts ?? 0}`,
       });
       if (id) await loadWallet(id);
       else await refreshList();
@@ -166,6 +185,11 @@ export function WatchlistPanel() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {helius === false && (
+            <div className="text-sm rounded-md border border-border bg-muted/40 p-3">
+              You can add and list wallets now. Scan for new buys needs a Helius key in Replit Secrets.
+            </div>
+          )}
           <div className="flex flex-col sm:flex-row gap-2">
             <Input
               placeholder="Wallet address to watch"
@@ -234,7 +258,11 @@ export function WatchlistPanel() {
               <div>
                 <h3 className="text-sm font-semibold mb-2">Recent tokens</h3>
                 {tokens.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No stored buys yet. Run a scan.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {helius === false
+                      ? "No stored buys yet. Scan will work after Helius is added."
+                      : "No stored buys yet. Run a scan."}
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     {tokens.slice(0, 12).map((t) => (
