@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { addToWatchlist, isWatched, removeFromWatchlist } from "@/lib/watchlist";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
+import { TokenMarketStats } from "@/components/TokenMarketStats";
 
 type MatchKind =
   | "exactNormalizedName"
@@ -432,16 +433,7 @@ export default function Token() {
             </div>
 
             {/* Market state — figures only, no chart */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StateCard label="Market Cap" value={fmtUsd(data.pair?.marketCap ?? null)} />
-              <StateCard label="FDV" value={fmtUsd(data.pair?.fdv ?? null)} />
-              <StateCard label="Liquidity" value={fmtUsd(data.pair?.liquidityUsd ?? null)} />
-              <StateCard
-                label="DEX"
-                value={data.pair?.dex ?? "—"}
-                sub={data.pair?.quoteSymbol ? `vs ${data.pair.quoteSymbol}` : undefined}
-              />
-            </div>
+            <TokenMarketStats pair={data.pair} />
 
             {/* First-200 Buyer Cohort */}
             <Card>
