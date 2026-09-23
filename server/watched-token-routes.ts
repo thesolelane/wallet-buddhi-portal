@@ -1,4 +1,4 @@
-import type { Express, Request } from "express";
+import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import crypto from "crypto";
 import { and, desc, eq } from "drizzle-orm";
@@ -21,24 +21,43 @@ const addSchema = z.object({
 });
 
 const GUEST_CAP = 2;
+const GUEST_COOKIE = "wb.vid";
 
 function capForTier(tier: string | undefined) {
   if (!tier) return TOKEN_WATCH_CAPS.basic;
   return TOKEN_WATCH_CAPS[tier] ?? TOKEN_WATCH_CAPS.basic;
 }
 
-function guestOwner(req: Request) {
-  const session = req.session as Request["session"] & { guestId?: string };
-  if (!session.guestId) {
-    session.guestId = crypto.randomBytes(16).toString("hex");
+function readCookie(req: Request, name: string) {
+  const raw = req.headers.cookie || "";
+  for (const part of raw.split(";")) {
+    const [k, ...rest] = part.trim().split("=");
+    if (k === name) return decodeURIComponent(rest.join("="));
   }
-  return `guest:${session.guestId}`;
+  return "";
+}
+
+function guestOwner(req: Request, res: Response) {
+  let vid = readCookie(req, GUEST_COOKIE);
+  if (!vid || vid.length < 16) {
+    vid = crypto.randomBytes(16).toString("hex");
+    res.cookie(GUEST_COOKIE, vid, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+  }
+  const session = req.session as Request["session"] & { guestId?: string };
+  session.guestId = vid;
+  return `guest:${vid}`;
 }
 
 export function registerWatchedTokenRoutes(app: Express) {
   app.get("/api/tokens/watched-guest", async (req, res) => {
     try {
-      const owner = guestOwner(req);
+      const owner = guestOwner(req, res);
       const tokens = await db
         .select()
         .from(watchedTokens)
@@ -54,7 +73,7 @@ export function registerWatchedTokenRoutes(app: Express) {
   app.post("/api/tokens/watched-guest", async (req, res) => {
     try {
       const data = addSchema.parse(req.body);
-      const owner = guestOwner(req);
+      const owner = guestOwner(req, res);
       const existingRows = await db
         .select()
         .from(watchedTokens)
@@ -93,7 +112,7 @@ export function registerWatchedTokenRoutes(app: Express) {
       if (!SOLANA_ADDRESS_RE.test(mint)) {
         return res.status(400).json({ error: "Invalid mint" });
       }
-      const owner = guestOwner(req);
+      const owner = guestOwner(req, res);
       const rows = await db
         .delete(watchedTokens)
         .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, mint)))
