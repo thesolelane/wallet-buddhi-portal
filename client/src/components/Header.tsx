@@ -1,4 +1,4 @@
-import { LayoutDashboard, BookOpen, HelpCircle, Shield, FlaskConical, AlertTriangle, Trophy } from "lucide-react";
+import { LayoutDashboard, BookOpen, HelpCircle, Shield, FlaskConical, AlertTriangle, Trophy, Eye } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "./ui/button";
 import { WalletButton } from "./WalletButton-new";
@@ -46,6 +46,17 @@ export function Header() {
           </div>
 
           <div className="hidden md:flex items-center gap-2">
+            {location !== "/watchlist" && (
+              <Button
+                variant="ghost"
+                onClick={() => navigate("/watchlist")}
+                data-testid="link-watchlist"
+                className="hover-elevate active-elevate-2"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Watchlist
+              </Button>
+            )}
             {connected && location !== "/dashboard" && (
               <Button
                 variant="ghost"
