@@ -16,25 +16,32 @@ export function WatchTokenButton({
   symbol?: string | null;
   name?: string | null;
 }) {
-  const { connected, address, openConnectModal } = useWallet();
+  const { connected, address } = useWallet();
   const { signMessage } = useSolanaWallet();
   const { toast } = useToast();
   const [watched, setWatched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cap, setCap] = useState(2);
   const [count, setCount] = useState(0);
+  const signed = Boolean(connected && address && signMessage);
+
+  function listPath() {
+    return signed ? "/api/tokens/watched" : "/api/tokens/watched-guest";
+  }
+  function itemPath() {
+    return signed ? `/api/tokens/watched/${mint}` : `/api/tokens/watched-guest/${mint}`;
+  }
 
   async function refresh() {
-    if (!connected || !address || !signMessage) return;
     try {
-      await ensureSiwsSession({ address, signMessage });
-      const res = await apiRequest("GET", "/api/tokens/watched");
+      if (signed) await ensureSiwsSession({ address: address!, signMessage: signMessage! });
+      const res = await apiRequest("GET", listPath());
       const data = await res.json();
       setCap(data.cap ?? 2);
       setCount(data.count ?? 0);
       setWatched((data.tokens || []).some((t: { mint: string }) => t.mint === mint));
     } catch {
-      /* stay local */
+      /* stay */
     }
   }
 
@@ -43,20 +50,15 @@ export function WatchTokenButton({
   }, [connected, address, mint]);
 
   async function toggle() {
-    if (!connected || !address || !signMessage) {
-      openConnectModal();
-      toast({ title: "Connect wallet to save this token" });
-      return;
-    }
     setBusy(true);
     try {
-      await ensureSiwsSession({ address, signMessage });
+      if (signed) await ensureSiwsSession({ address: address!, signMessage: signMessage! });
       if (watched) {
-        await apiRequest("DELETE", `/api/tokens/watched/${mint}`);
+        await apiRequest("DELETE", itemPath());
         setWatched(false);
         setCount((n) => Math.max(0, n - 1));
       } else {
-        const res = await apiRequest("POST", "/api/tokens/watched", {
+        const res = await apiRequest("POST", listPath(), {
           mint,
           symbol: symbol || undefined,
           name: name || undefined,
