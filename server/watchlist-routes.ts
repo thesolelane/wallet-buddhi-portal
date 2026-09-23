@@ -9,6 +9,7 @@ import {
   sessionWallet,
   getAuthDomain,
 } from "./siws-auth";
+import { scanOwnerWatchlist, scanWatchedWallet } from "./watchlist-monitor";
 
 const challengeSchema = z.object({
   address: z.string().regex(SOLANA_ADDRESS_RE),
@@ -122,6 +123,17 @@ export function registerWatchlistRoutes(app: Express) {
     }
   });
 
+  app.post("/api/wallets/scan", requireWalletAuth, async (req, res) => {
+    try {
+      const owner = sessionWallet(req)!;
+      const summary = await scanOwnerWatchlist(owner);
+      return res.json(summary);
+    } catch (error) {
+      console.error("Error scanning watchlist:", error);
+      return res.status(500).json({ error: "Failed to scan watchlist" });
+    }
+  });
+
   app.get("/api/wallets/:id", requireWalletAuth, async (req, res) => {
     try {
       const wallet = await assertOwnsWatch(req, res, req.params.id);
@@ -130,6 +142,18 @@ export function registerWatchlistRoutes(app: Express) {
     } catch (error) {
       console.error("Error fetching watched wallet:", error);
       return res.status(500).json({ error: "Failed to fetch wallet" });
+    }
+  });
+
+  app.post("/api/wallets/:id/scan", requireWalletAuth, async (req, res) => {
+    try {
+      const wallet = await assertOwnsWatch(req, res, req.params.id);
+      if (!wallet) return;
+      const result = await scanWatchedWallet(wallet);
+      return res.json(result);
+    } catch (error) {
+      console.error("Error scanning wallet:", error);
+      return res.status(500).json({ error: "Failed to scan wallet" });
     }
   });
 
