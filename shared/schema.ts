@@ -107,6 +107,38 @@ export const insertWatchedWalletSchema = createInsertSchema(watchedWallets).omit
 export type InsertWatchedWallet = z.infer<typeof insertWatchedWalletSchema>;
 export type WatchedWallet = typeof watchedWallets.$inferSelect;
 
+export const watchedTokens = pgTable(
+  "watched_tokens",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    ownerPubkey: text("owner_pubkey").notNull(),
+    mint: text("mint").notNull(),
+    symbol: text("symbol"),
+    name: text("name"),
+    addedAt: timestamp("added_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    ownerMintUnique: uniqueIndex("watched_tokens_owner_mint_unique").on(
+      table.ownerPubkey,
+      table.mint,
+    ),
+  }),
+);
+
+export const insertWatchedTokenSchema = createInsertSchema(watchedTokens).omit({
+  id: true,
+  addedAt: true,
+});
+
+export type InsertWatchedToken = z.infer<typeof insertWatchedTokenSchema>;
+export type WatchedToken = typeof watchedTokens.$inferSelect;
+
+export const TOKEN_WATCH_CAPS: Record<string, number> = {
+  basic: 2,
+  pro: 15,
+  pro_plus: 50,
+};
+
 export const purchasedTokens = pgTable("purchased_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   watchedWalletId: varchar("watched_wallet_id")
