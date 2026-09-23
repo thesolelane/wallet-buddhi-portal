@@ -430,19 +430,6 @@ export default function Token() {
             {/* Market state — figures only, no chart */}
             <TokenMarketStats pair={data.pair} />
 
-            <Card className="border-border">
-              <CardContent className="pt-6 space-y-3">
-                <p className="text-sm font-medium">Early-buyer map and bump-bot scan</p>
-                <p className="text-sm text-muted-foreground">
-                  First buyers shows who got in earliest, who is still holding, and who looks like a sniper.
-                  Bump detector looks for wash-trading wallets that buy and sell the same token to fake volume.
-                  Both walk parsed Solana history. They work on this button, but a free Helius key often rate-limits them.
-                </p>
-                <Button onClick={() => setLoadHeavy(true)} disabled={loadHeavy}>
-                  {loadHeavy ? "Loading…" : "Try buyers and bump report"}
-                </Button>
-              </CardContent>
-            </Card>
 
             <Card>
               <CardContent className="pt-6 space-y-1">
