@@ -42,6 +42,13 @@ async function assertOwnsWatch(req: Request, res: Response, watchId: string) {
 }
 
 export function registerWatchlistRoutes(app: Express) {
+  app.get("/api/health/data-sources", (_req, res) => {
+    return res.json({
+      helius: Boolean(process.env.HELIUS_API_KEY),
+      dexscreener: true,
+    });
+  });
+
   app.post("/api/auth/challenge", (req, res) => {
     try {
       const { address } = challengeSchema.parse(req.body);
