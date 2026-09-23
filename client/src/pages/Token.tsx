@@ -250,14 +250,16 @@ export default function Token() {
     enabled: !!ca,
   });
 
+  const [loadHeavy, setLoadHeavy] = useState(false);
+
   const { data: buyers, isLoading: buyersLoading } = useQuery<BuyersResult>({
     queryKey: [`/api/token/${ca}/buyers`],
-    enabled: !!ca,
+    enabled: false,
   });
 
   const { data: bump, isLoading: bumpLoading } = useQuery<BumpReport>({
     queryKey: [`/api/token/${ca}/bump-report`],
-    enabled: !!ca,
+    enabled: false,
   });
 
   const { data: social } = useQuery<SocialReport>({
@@ -343,19 +345,12 @@ export default function Token() {
             <HealthPills data={data} holders={holders} buyers={buyers} bump={bump} />
 
             {/* Kinship Graph link */}
-            <Card className="border-primary/20 bg-primary/5">
-              <CardContent className="pt-6 flex items-center gap-3">
-                <Orbit className="w-5 h-5 text-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Kinship Graph</p>
-                  <p className="text-xs text-muted-foreground">
-                    Radial view of every wallet connected to this token. Run the 90-day rescan
-                    from inside the page to reveal persistent ties across other tokens.
-                  </p>
-                </div>
-                <Button size="sm" onClick={() => navigate(`/token/${data.ca}/constellation`)}>
-                  Open
-                </Button>
+            <Card>
+              <CardContent className="pt-6 space-y-1">
+                <p className="text-sm font-medium">Kinship graph · Coming soon</p>
+                <p className="text-sm text-muted-foreground">
+                  A map of wallets tied to this token and to each other across other tokens.
+                </p>
               </CardContent>
             </Card>
 
@@ -435,6 +430,30 @@ export default function Token() {
             {/* Market state — figures only, no chart */}
             <TokenMarketStats pair={data.pair} />
 
+            <Card className="border-border">
+              <CardContent className="pt-6 space-y-3">
+                <p className="text-sm font-medium">Early-buyer map and bump-bot scan</p>
+                <p className="text-sm text-muted-foreground">
+                  First buyers shows who got in earliest, who is still holding, and who looks like a sniper.
+                  Bump detector looks for wash-trading wallets that buy and sell the same token to fake volume.
+                  Both walk parsed Solana history. They work on this button, but a free Helius key often rate-limits them.
+                </p>
+                <Button onClick={() => setLoadHeavy(true)} disabled={loadHeavy}>
+                  {loadHeavy ? "Loading…" : "Try buyers and bump report"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6 space-y-1">
+                <p className="text-sm font-medium">First buyers · Coming soon</p>
+                <p className="text-sm text-muted-foreground">
+                  Who bought first, who still holds, and who looks like a sniper.
+                </p>
+              </CardContent>
+            </Card>
+            {false && (
+            <>
             {/* First-200 Buyer Cohort */}
             <Card>
               <CardHeader>
@@ -499,6 +518,18 @@ export default function Token() {
               </CardContent>
             </Card>
 
+            </>
+            )}
+            <Card>
+              <CardContent className="pt-6 space-y-1">
+                <p className="text-sm font-medium">Bump-bot detector · Coming soon</p>
+                <p className="text-sm text-muted-foreground">
+                  Finds wallets that buy and sell the same token to fake volume.
+                </p>
+              </CardContent>
+            </Card>
+            {false && (
+            <>
             {/* Bump-bot report */}
             <Card>
               <CardHeader>
@@ -549,6 +580,8 @@ export default function Token() {
                 )}
               </CardContent>
             </Card>
+            </>
+            )}
 
             {/* Top Holders */}
             <Card>
