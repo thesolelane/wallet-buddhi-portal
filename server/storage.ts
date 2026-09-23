@@ -13,6 +13,7 @@ import {
   type InsertPurchasedToken,
   type Alert,
   type InsertAlert,
+  type Signal,
   type TokenMetadata,
   users,
   walletAccounts,
@@ -252,10 +253,19 @@ export class MemStorage implements IStorage {
   }
   async createAlert(data: InsertAlert) {
     const id = randomUUID();
+    const signals = (data.signals ?? []) as Signal[];
     const alert: Alert = {
       id,
-      ...data,
-      signals: data.signals ?? [],
+      watchedWalletId: data.watchedWalletId,
+      newMint: data.newMint,
+      newSymbol: data.newSymbol ?? null,
+      newName: data.newName ?? null,
+      matchedTokenId: data.matchedTokenId ?? null,
+      matchedMint: data.matchedMint ?? null,
+      matchedSymbol: data.matchedSymbol ?? null,
+      matchedName: data.matchedName ?? null,
+      signals,
+      verdict: data.verdict,
       createdAt: new Date(),
       dismissedAt: null,
     };
@@ -484,11 +494,12 @@ export class DbStorage implements IStorage {
     return db.select().from(alerts).orderBy(desc(alerts.createdAt));
   }
   async createAlert(data: InsertAlert) {
+    const signals = (data.signals ?? []) as Signal[];
     const rows = await db
       .insert(alerts)
       .values({
         ...data,
-        signals: data.signals ?? [],
+        signals,
       })
       .returning();
     return rows[0];

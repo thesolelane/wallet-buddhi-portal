@@ -183,6 +183,10 @@ interface TokenMetadata {
     dex: string | null;
     pairAddress: string | null;
     quoteSymbol: string | null;
+    priceUsd: number | null;
+    volume24h: number | null;
+    buys24h: number | null;
+    sells24h: number | null;
     liquidityUsd: number | null;
     fdv: number | null;
     marketCap: number | null;
@@ -252,15 +256,26 @@ export default function Token() {
 
   const [loadHeavy, setLoadHeavy] = useState(false);
 
-  const { data: buyers, isLoading: buyersLoading } = useQuery<BuyersResult>({
+  const { data: buyersData, isLoading: buyersLoading } = useQuery<BuyersResult>({
     queryKey: [`/api/token/${ca}/buyers`],
     enabled: false,
   });
+  const buyers = buyersData ?? null;
 
-  const { data: bump, isLoading: bumpLoading } = useQuery<BumpReport>({
+  const { data: bumpData, isLoading: bumpLoading } = useQuery<BumpReport>({
     queryKey: [`/api/token/${ca}/bump-report`],
     enabled: false,
   });
+  const bump = bumpData ?? null;
+  const buyersSucceeded = buyers?.ok === true;
+  const buyerRows = buyersSucceeded ? buyers.buyers : [];
+  const buyerStats = buyersSucceeded ? buyers.stats : undefined;
+  const buyersFailed = buyers?.ok === false;
+  const buyersFailureReason = buyers?.reason ?? "Unknown error";
+  const bumpSucceeded = bump?.ok === true;
+  const suspectWallets = bumpSucceeded ? bump.suspectWallets : [];
+  const bumpFailed = bump?.ok === false;
+  const bumpFailureReason = bump?.reason ?? "Unknown error";
 
   const { data: social } = useQuery<SocialReport>({
     queryKey: [`/api/token/${ca}/social`],
@@ -342,7 +357,7 @@ export default function Token() {
             )}
 
             {/* Health pills — synthesize all signals at the top */}
-            <HealthPills data={data} holders={holders} buyers={buyers} bump={bump} />
+            <HealthPills data={data} holders={holders} buyers={buyers ?? undefined} bump={bump ?? undefined} />
 
             {/* Kinship Graph link */}
             <Card>
@@ -446,18 +461,18 @@ export default function Token() {
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Grid3x3 className="w-4 h-4" />
-                  First {buyers?.buyers?.length ?? 200} Buyers
-                  {buyers?.ok && buyers.stats && (
+                  First {buyerRows.length || 200} Buyers
+                  {buyersSucceeded && buyerStats && (
                     <span className="text-xs font-normal ml-auto flex gap-3">
                       <span className="text-green-500">
-                        {buyers.stats.stillHolding} holding
+                        {buyerStats?.stillHolding ?? 0} holding
                       </span>
                       <span className="text-muted-foreground">
-                        {buyers.stats.exited} exited
+                        {buyerStats?.exited ?? 0} exited
                       </span>
-                      {buyers.stats.snipers > 0 && (
+                      {(buyerStats?.snipers ?? 0) > 0 && (
                         <span className="text-orange-500" title="Used Jito tip or heavy priority fee in first 100">
-                          ⚡ {buyers.stats.snipers} snipers
+                          ⚡ {buyerStats?.snipers ?? 0} snipers
                         </span>
                       )}
                     </span>
@@ -473,32 +488,32 @@ export default function Token() {
                     </p>
                   </div>
                 )}
-                {buyers && !buyers.ok && (
+                {buyersFailed && (
                   <p className="text-sm text-muted-foreground">
-                    Unable to load cohort: {buyers.reason}
+                    Unable to load cohort: {buyersFailureReason}
                   </p>
                 )}
-                {buyers?.ok && buyers.buyers.length === 0 && (
+                {buyersSucceeded && buyerRows.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     No swap txs found in recent history.
                   </p>
                 )}
-                {buyers?.ok && buyers.buyers.length > 0 && (
+                {buyersSucceeded && buyerRows.length > 0 && (
                   <>
                     <CohortGrid
-                      buyers={buyers.buyers}
+                      buyers={buyerRows}
                       onOpen={(w) => navigate(`/wallet/${w}`)}
                     />
                     <p className="text-xs text-muted-foreground mt-3">
                       Green = still holding · Gray = exited · Orange ring = sniper
                       {" (Jito-tipped or high priority fee in first 100)"}
-                      {buyers.stats && buyers.stats.totalJitoTipSol > 0 && (
+                      {(buyerStats?.totalJitoTipSol ?? 0) > 0 && (
                         <>
-                          {" · "}Cohort paid {buyers.stats.totalJitoTipSol.toFixed(3)} SOL in Jito tips
+                          {" · "}Cohort paid {(buyerStats?.totalJitoTipSol ?? 0).toFixed(3)} SOL in Jito tips
                         </>
                       )}
-                      {" · "}Scanned {buyers.scannedTxs} txs
-                      {buyers.hitLimit && " (hit page cap — may be incomplete)"}
+                      {" · "}Scanned {buyers?.scannedTxs ?? 0} txs
+                      {buyers?.hitLimit && " (hit page cap — may be incomplete)"}
                     </p>
                   </>
                 )}
@@ -523,14 +538,14 @@ export default function Token() {
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Bot className="w-4 h-4" />
                   Bump-Bot Detector
-                  {bump?.ok && (
+                  {bumpSucceeded && (
                     <span className="text-xs font-normal ml-auto flex gap-3">
-                      <span className={bump.suspectWallets.length > 0 ? "text-orange-500" : "text-green-500"}>
-                        {bump.suspectWallets.length} suspect wallets
+                      <span className={suspectWallets.length > 0 ? "text-orange-500" : "text-green-500"}>
+                        {suspectWallets.length} suspect wallets
                       </span>
-                      {bump.totalFeesBurnedSol > 0 && (
+                      {bumpSucceeded && (bump?.totalFeesBurnedSol ?? 0) > 0 && (
                         <span className="text-muted-foreground">
-                          {bump.totalFeesBurnedSol.toFixed(3)} SOL burned on fees
+                          {(bump?.totalFeesBurnedSol ?? 0).toFixed(3)} SOL burned on fees
                         </span>
                       )}
                     </span>
@@ -539,28 +554,28 @@ export default function Token() {
               </CardHeader>
               <CardContent>
                 {bumpLoading && <Skeleton className="h-20 w-full" />}
-                {bump && !bump.ok && (
+                {bumpFailed && (
                   <p className="text-sm text-muted-foreground">
-                    Unable to analyze: {bump.reason}
+                    Unable to analyze: {bumpFailureReason}
                   </p>
                 )}
-                {bump?.ok && bump.suspectWallets.length === 0 && (
+                {bumpSucceeded && suspectWallets.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     No bump-bot patterns detected in the scanned history. Volume appears organic.
                   </p>
                 )}
-                {bump?.ok && bump.suspectWallets.length > 0 && (
+                {bumpSucceeded && suspectWallets.length > 0 && (
                   <div className="space-y-1.5">
-                    {bump.suspectWallets.slice(0, 10).map((w) => (
+                    {suspectWallets.slice(0, 10).map((w) => (
                       <BumpRow
                         key={w.wallet}
                         w={w}
                         onOpen={(addr) => navigate(`/wallet/${addr}`)}
                       />
                     ))}
-                    {bump.suspectWallets.length > 10 && (
+                    {suspectWallets.length > 10 && (
                       <p className="text-xs text-muted-foreground pt-1">
-                        …and {bump.suspectWallets.length - 10} more
+                        …and {suspectWallets.length - 10} more
                       </p>
                     )}
                   </div>

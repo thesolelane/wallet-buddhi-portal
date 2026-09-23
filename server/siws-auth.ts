@@ -38,16 +38,16 @@ const nonceStore = new Map<string, NonceRecord>(); // key = `${address}:${nonce}
 
 function pruneExpired() {
   const now = Date.now();
-  for (const [key, rec] of nonceStore) {
+  nonceStore.forEach((rec, key) => {
     if (rec.expiresAt <= now) nonceStore.delete(key);
-  }
+  });
 }
 
 function countNoncesForAddress(address: string): number {
   let n = 0;
-  for (const rec of nonceStore.values()) {
+  nonceStore.forEach((rec) => {
     if (rec.address === address) n += 1;
-  }
+  });
   return n;
 }
 

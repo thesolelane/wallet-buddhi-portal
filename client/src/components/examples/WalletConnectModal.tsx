@@ -13,7 +13,9 @@ export default function WalletConnectModalExample() {
         <WalletConnectModal
           open={open}
           onOpenChange={setOpen}
-          onConnect={(wallet) => console.log('Connected to', wallet)}
+          onConnect={async (wallet) => {
+            console.log('Connected to', wallet);
+          }}
         />
       </div>
     </ThemeProvider>
