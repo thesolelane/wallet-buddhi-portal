@@ -15,23 +15,27 @@ function shorten(addr: string) {
 }
 
 export function WatchedTokensPanel() {
-  const { connected, address, openConnectModal } = useWallet();
+  const { connected, address } = useWallet();
   const { signMessage } = useSolanaWallet();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [tokens, setTokens] = useState<any[]>([]);
   const [cap, setCap] = useState(2);
   const [tier, setTier] = useState("basic");
+  const signed = Boolean(connected && address && signMessage);
+
+  function listPath() {
+    return signed ? "/api/tokens/watched" : "/api/tokens/watched-guest";
+  }
 
   async function refresh() {
-    if (!connected || !address || !signMessage) return;
     try {
-      await ensureSiwsSession({ address, signMessage });
-      const res = await apiRequest("GET", "/api/tokens/watched");
+      if (signed) await ensureSiwsSession({ address: address!, signMessage: signMessage! });
+      const res = await apiRequest("GET", listPath());
       const data = await res.json();
       setTokens(data.tokens || []);
       setCap(data.cap ?? 2);
-      setTier(data.tier ?? "basic");
+      setTier(signed ? data.tier ?? "basic" : "free");
     } catch (error) {
       toast({
         title: "Watched tokens",
@@ -42,12 +46,13 @@ export function WatchedTokensPanel() {
   }
 
   useEffect(() => {
-    if (connected && address) void refresh();
+    void refresh();
   }, [connected, address]);
 
   async function remove(mint: string) {
     try {
-      await apiRequest("DELETE", `/api/tokens/watched/${mint}`);
+      const path = signed ? `/api/tokens/watched/${mint}` : `/api/tokens/watched-guest/${mint}`;
+      await apiRequest("DELETE", path);
       setTokens((list) => list.filter((t) => t.mint !== mint));
     } catch (error) {
       toast({
@@ -56,25 +61,6 @@ export function WatchedTokensPanel() {
         variant: "destructive",
       });
     }
-  }
-
-  if (!connected) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Eye className="h-5 w-5 text-primary" />
-            Watched tokens
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">
-            Connect and sign in to save tokens. Free plan includes 2.
-          </p>
-          <Button onClick={openConnectModal}>Connect wallet</Button>
-        </CardContent>
-      </Card>
-    );
   }
 
   return (
@@ -91,7 +77,7 @@ export function WatchedTokensPanel() {
       <CardContent className="space-y-2">
         {tokens.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Inspect a token and tap Watch token. Free plan saves 2.
+            Inspect a token and tap Watch token. No wallet needed for 2 free watches.
           </p>
         ) : (
           tokens.map((t) => (
