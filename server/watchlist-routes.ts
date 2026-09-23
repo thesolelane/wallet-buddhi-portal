@@ -10,6 +10,7 @@ import {
   getAuthDomain,
 } from "./siws-auth";
 import { scanOwnerWatchlist, scanWatchedWallet } from "./watchlist-monitor";
+import { registerWatchedTokenRoutes } from "./watched-token-routes";
 
 const challengeSchema = z.object({
   address: z.string().regex(SOLANA_ADDRESS_RE),
@@ -42,6 +43,8 @@ async function assertOwnsWatch(req: Request, res: Response, watchId: string) {
 }
 
 export function registerWatchlistRoutes(app: Express) {
+  registerWatchedTokenRoutes(app);
+
   app.get("/api/health/data-sources", (_req, res) => {
     return res.json({
       helius: Boolean(process.env.HELIUS_API_KEY),
