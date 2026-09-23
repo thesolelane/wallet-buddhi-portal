@@ -5,6 +5,7 @@ import MemoryStore from "memorystore";
 import crypto from "crypto";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { startWatchlistMonitor } from "./watchlist-monitor";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -51,13 +52,12 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      // Never log auth payloads or session material.
       const sensitive = path.startsWith("/api/auth/");
       if (capturedJsonResponse && !sensitive) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
       if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
+        logLine = logLine.slice(0, 79) + "\u2026";
       }
       log(logLine);
     }
@@ -91,6 +91,11 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      if (process.env.ENABLE_WATCHLIST_MONITOR === "1") {
+        const intervalMs = Number(process.env.WATCHLIST_MONITOR_MS || 60000);
+        startWatchlistMonitor(Number.isFinite(intervalMs) ? intervalMs : 60000);
+        log("watchlist monitor enabled");
+      }
     },
   );
 })();
