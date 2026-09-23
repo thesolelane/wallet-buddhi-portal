@@ -1,6 +1,5 @@
-// Token metadata service — Phase A
-// Pulls from Helius DAS getAsset + DexScreener (free).
-// No price data, no charts. State only.
+// Token metadata service — Helius DAS + DexScreener.
+// Price/volume come from DexScreener and work without a Helius key.
 
 const HELIUS_KEY = process.env.HELIUS_API_KEY;
 const HELIUS_NETWORK = process.env.SOLANA_NETWORK === "devnet" ? "devnet" : "mainnet";
@@ -18,7 +17,7 @@ export interface TokenMetadata {
   freezeAuthority: string | null;
   mintAuthorityRenounced: boolean;
   freezeAuthorityRenounced: boolean;
-  updateAuthority: string | null; // Metaplex update authority — often the deployer/dev
+  updateAuthority: string | null;
   creators: Array<{ address: string; share: number; verified: boolean }>;
   socials: {
     website: string | null;
@@ -30,10 +29,14 @@ export interface TokenMetadata {
     dex: string | null;
     pairAddress: string | null;
     quoteSymbol: string | null;
+    priceUsd: number | null;
+    volume24h: number | null;
+    buys24h: number | null;
+    sells24h: number | null;
     liquidityUsd: number | null;
     fdv: number | null;
     marketCap: number | null;
-    pairCreatedAt: number | null; // unix ms
+    pairCreatedAt: number | null;
   } | null;
   fetchedAt: number;
   source: {
@@ -85,13 +88,17 @@ async function fetchDexScreener(ca: string) {
 
 function pickBestPair(pairs: any[] | undefined) {
   if (!pairs || pairs.length === 0) return null;
-  // Prefer highest-liquidity pair
   const sorted = [...pairs].sort((a, b) => {
     const la = a?.liquidity?.usd ?? 0;
     const lb = b?.liquidity?.usd ?? 0;
     return lb - la;
   });
   return sorted[0];
+}
+
+function toNum(value: unknown): number | null {
+  const n = typeof value === "string" ? Number(value) : typeof value === "number" ? value : NaN;
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function getTokenMetadata(ca: string): Promise<TokenMetadata> {
@@ -107,8 +114,6 @@ export async function getTokenMetadata(ca: string): Promise<TokenMetadata> {
   const mintAuth = hToken?.mint_authority ?? null;
   const freezeAuth = hToken?.freeze_authority ?? null;
 
-  // Update authority — first entry in authorities[] with scopes including "full"
-  // or just the first one (Metaplex convention).
   const authList = Array.isArray(hAuth) ? hAuth : [];
   const updateAuth =
     authList.find((a: any) => Array.isArray(a?.scopes) && a.scopes.includes("full"))?.address ??
@@ -126,7 +131,6 @@ export async function getTokenMetadata(ca: string): Promise<TokenMetadata> {
   const pair = pickBestPair(dex.data?.pairs);
   const dexInfo = pair?.info;
 
-  // Socials: prefer DexScreener (more reliable for memecoins), fall back to on-chain JSON
   const socials = {
     website: dexInfo?.websites?.[0]?.url ?? hLinks?.external_url ?? null,
     twitter:
@@ -161,6 +165,10 @@ export async function getTokenMetadata(ca: string): Promise<TokenMetadata> {
           dex: pair.dexId ?? null,
           pairAddress: pair.pairAddress ?? null,
           quoteSymbol: pair.quoteToken?.symbol ?? null,
+          priceUsd: toNum(pair.priceUsd),
+          volume24h: toNum(pair.volume?.h24),
+          buys24h: toNum(pair.txns?.h24?.buys),
+          sells24h: toNum(pair.txns?.h24?.sells),
           liquidityUsd: pair.liquidity?.usd ?? null,
           fdv: pair.fdv ?? null,
           marketCap: pair.marketCap ?? null,
