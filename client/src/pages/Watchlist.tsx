@@ -1,5 +1,6 @@
 import { Header } from "@/components/Header";
 import { WatchlistPanel } from "@/components/WatchlistPanel";
+import { WatchedTokensPanel } from "@/components/WatchedTokensPanel";
 
 export default function Watchlist() {
   return (
@@ -10,9 +11,10 @@ export default function Watchlist() {
           <div>
             <h1 className="text-3xl font-bold mb-2">Watchlist</h1>
             <p className="text-muted-foreground">
-              Watch public wallets only. Sign a message to prove ownership of your login wallet. No keys are stored.
+              Watch public wallets and save tokens. Sign a message to prove the login wallet. No keys are stored.
             </p>
           </div>
+          <WatchedTokensPanel />
           <WatchlistPanel />
         </div>
       </main>
