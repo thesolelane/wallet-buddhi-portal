@@ -17,6 +17,7 @@ import Wallet from "@/pages/Wallet";
 import BadActors from "@/pages/BadActors";
 import Constellation from "@/pages/Constellation";
 import Leaderboards from "@/pages/Leaderboards";
+import Watchlist from "@/pages/Watchlist";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,6 +25,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/watchlist" component={Watchlist} />
       <Route path="/getting-started" component={GettingStarted} />
       <Route path="/faq" component={FAQ} />
       <Route path="/security" component={Security} />
