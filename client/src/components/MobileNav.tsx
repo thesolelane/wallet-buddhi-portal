@@ -6,7 +6,8 @@ import {
   LayoutDashboard,
   BookOpen,
   HelpCircle,
-  Shield
+  Shield,
+  Eye
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ export function MobileNav({ connected }: MobileNavProps) {
 
   const mainNavItems = [
     { path: "/", label: "Home", icon: HomeIcon },
+    { path: "/watchlist", label: "Watchlist", icon: Eye },
     ...(connected
       ? [{ path: "/dashboard", label: "Dashboard", icon: LayoutDashboard }]
       : []),
