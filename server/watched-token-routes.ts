@@ -1,5 +1,6 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { z } from "zod";
+import crypto from "crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
@@ -19,12 +20,91 @@ const addSchema = z.object({
   name: z.string().max(64).optional(),
 });
 
+const GUEST_CAP = 2;
+
 function capForTier(tier: string | undefined) {
   if (!tier) return TOKEN_WATCH_CAPS.basic;
   return TOKEN_WATCH_CAPS[tier] ?? TOKEN_WATCH_CAPS.basic;
 }
 
+function guestOwner(req: Request) {
+  const session = req.session as Request["session"] & { guestId?: string };
+  if (!session.guestId) {
+    session.guestId = crypto.randomBytes(16).toString("hex");
+  }
+  return `guest:${session.guestId}`;
+}
+
 export function registerWatchedTokenRoutes(app: Express) {
+  app.get("/api/tokens/watched-guest", async (req, res) => {
+    try {
+      const owner = guestOwner(req);
+      const tokens = await db
+        .select()
+        .from(watchedTokens)
+        .where(eq(watchedTokens.ownerPubkey, owner))
+        .orderBy(desc(watchedTokens.addedAt));
+      return res.json({ tokens, cap: GUEST_CAP, count: tokens.length, tier: "basic" });
+    } catch (error) {
+      console.error("Error listing guest tokens:", error);
+      return res.status(500).json({ error: "Failed to list watched tokens" });
+    }
+  });
+
+  app.post("/api/tokens/watched-guest", async (req, res) => {
+    try {
+      const data = addSchema.parse(req.body);
+      const owner = guestOwner(req);
+      const existingRows = await db
+        .select()
+        .from(watchedTokens)
+        .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, data.mint)))
+        .limit(1);
+      if (existingRows[0]) return res.json(existingRows[0]);
+      const all = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
+      if (all.length >= GUEST_CAP) {
+        return res.status(403).json({
+          error: "Free plan allows 2 watched tokens. Connect a wallet and upgrade for more.",
+          cap: GUEST_CAP,
+        });
+      }
+      const rows = await db
+        .insert(watchedTokens)
+        .values({
+          ownerPubkey: owner,
+          mint: data.mint,
+          symbol: data.symbol ?? null,
+          name: data.name ?? null,
+        })
+        .returning();
+      return res.status(201).json(rows[0]);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request data" });
+      }
+      console.error("Error watching guest token:", error);
+      return res.status(500).json({ error: "Failed to watch token" });
+    }
+  });
+
+  app.delete("/api/tokens/watched-guest/:mint", async (req, res) => {
+    try {
+      const mint = req.params.mint;
+      if (!SOLANA_ADDRESS_RE.test(mint)) {
+        return res.status(400).json({ error: "Invalid mint" });
+      }
+      const owner = guestOwner(req);
+      const rows = await db
+        .delete(watchedTokens)
+        .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, mint)))
+        .returning();
+      return res.json({ removed: rows.length > 0 });
+    } catch (error) {
+      console.error("Error unwatching guest token:", error);
+      return res.status(500).json({ error: "Failed to unwatch token" });
+    }
+  });
+
   app.get("/api/tokens/watched", requireWalletAuth, async (req, res) => {
     try {
       const owner = sessionWallet(req)!;
