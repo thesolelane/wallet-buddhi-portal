@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { addToWatchlist, isWatched, removeFromWatchlist } from "@/lib/watchlist";
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
 import { TokenMarketStats } from "@/components/TokenMarketStats";
+import { WatchTokenButton } from "@/components/WatchTokenButton";
 
 type MatchKind =
   | "exactNormalizedName"
@@ -346,7 +347,7 @@ export default function Token() {
                       </p>
                     )}
                   </div>
-                  <WatchToggle ca={data.ca} />
+                  <WatchTokenButton mint={data.ca} symbol={data.symbol} name={data.name} />
                 </div>
               </CardContent>
             </Card>
