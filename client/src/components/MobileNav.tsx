@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { 
-  Menu, 
-  X, 
-  Home as HomeIcon, 
+import {
+  Menu,
+  X,
+  Home as HomeIcon,
   LayoutDashboard,
   BookOpen,
   HelpCircle,
   Shield,
-  Eye
+  Eye,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -32,9 +32,7 @@ export function MobileNav({ connected }: MobileNavProps) {
   const mainNavItems = [
     { path: "/", label: "Home", icon: HomeIcon },
     { path: "/watchlist", label: "Watchlist", icon: Eye },
-    ...(connected
-      ? [{ path: "/dashboard", label: "Dashboard", icon: LayoutDashboard }]
-      : []),
+    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   ];
 
   const helpNavItems = [
@@ -79,6 +77,11 @@ export function MobileNav({ connected }: MobileNavProps) {
                 variant={location === item.path ? "default" : "ghost"}
                 className="justify-start hover-elevate active-elevate-2"
                 onClick={() => {
+                  if (item.path === "/dashboard" && !connected) {
+                    setOpen(false);
+                    navigate("/");
+                    return;
+                  }
                   navigate(item.path);
                   setOpen(false);
                 }}
@@ -103,7 +106,7 @@ export function MobileNav({ connected }: MobileNavProps) {
                   navigate(item.path);
                   setOpen(false);
                 }}
-                data-testid={`link-mobile-${item.label.toLowerCase().replace(' ', '-')}`}
+                data-testid={`link-mobile-${item.label.toLowerCase().replace(" ", "-")}`}
               >
                 <item.icon className="h-4 w-4 mr-2" />
                 {item.label}
