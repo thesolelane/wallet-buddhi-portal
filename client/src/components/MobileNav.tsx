@@ -8,6 +8,9 @@ import {
   HelpCircle,
   Shield,
   Eye,
+  FlaskConical,
+  Trophy,
+  AlertTriangle,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -33,6 +36,9 @@ export function MobileNav({ connected }: MobileNavProps) {
     { path: "/", label: "Home", icon: HomeIcon },
     { path: "/watchlist", label: "Watchlist", icon: Eye },
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { path: "/lab", label: "Lab", icon: FlaskConical },
+    { path: "/leaderboards", label: "Leaderboards", icon: Trophy },
+    { path: "/bad-actors", label: "Bad Actors", icon: AlertTriangle },
   ];
 
   const helpNavItems = [
@@ -85,7 +91,7 @@ export function MobileNav({ connected }: MobileNavProps) {
                   navigate(item.path);
                   setOpen(false);
                 }}
-                data-testid={`link-mobile-${item.label.toLowerCase()}`}
+                data-testid={`link-mobile-${item.label.toLowerCase().replace(" ", "-")}`}
               >
                 <item.icon className="h-4 w-4 mr-2" />
                 {item.label}
