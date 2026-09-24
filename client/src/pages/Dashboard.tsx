@@ -4,10 +4,8 @@ import { Header } from "@/components/Header";
 import { BotCard } from "@/components/BotCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingUp, Shield, Wallet as WalletIcon, ArrowLeft, Bot } from "lucide-react";
+import { Plus, Shield, ArrowLeft, Bot, Eye } from "lucide-react";
 import { useWallet } from "@/lib/wallet-context-new";
-import { WatchlistPanel } from "@/components/WatchlistPanel";
-import { WatchedTokens } from "@/components/WatchedTokens";
 import { ProtectedTokens } from "@/components/ProtectedTokens";
 
 type BotStatus = "active" | "inactive";
@@ -87,17 +85,15 @@ export default function Dashboard() {
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <div>
+              <div className="flex-1">
                 <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-                <p className="text-muted-foreground">
-                  Manage your wallet protection and arbitrage bots
-                </p>
+                <p className="text-muted-foreground">Account, protection list, and Pro+ bots.</p>
               </div>
+              <Button onClick={() => navigate("/watchlist")}>
+                <Eye className="h-4 w-4 mr-2" />
+                Open watchlist
+              </Button>
             </div>
-
-            <WatchlistPanel />
-            <WatchedTokens />
-            <ProtectedTokens />
 
             <Card className="border-primary/20">
               <CardHeader>
@@ -110,9 +106,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">Cached Tier</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg font-bold capitalize">{tier}</span>
-                    </div>
+                    <span className="text-lg font-bold capitalize">{tier}</span>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1">On-Chain Tier</p>
@@ -124,6 +118,8 @@ export default function Dashboard() {
                 ) : null}
               </CardContent>
             </Card>
+
+            <ProtectedTokens />
 
             {tier === "pro_plus" ? (
               <div>
