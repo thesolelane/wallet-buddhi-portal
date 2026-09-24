@@ -69,7 +69,6 @@ export async function getWalletHoldings(address: string): Promise<WalletHoldings
             page,
             limit: 100,
             displayOptions: {
-              showFungible: true,
               showZeroBalance: false,
               showNativeBalance: false,
             },
@@ -84,7 +83,11 @@ export async function getWalletHoldings(address: string): Promise<WalletHoldings
 
       for (const item of items) {
         const interfaceType = String(item.interface || "");
-        if (!FUNGIBLE.has(interfaceType) && !interfaceType.toLowerCase().includes("fungible")) {
+        if (
+          interfaceType &&
+          !FUNGIBLE.has(interfaceType) &&
+          !interfaceType.toLowerCase().includes("fungible")
+        ) {
           continue;
         }
         const mint = item.id || item.token_info?.mint;
