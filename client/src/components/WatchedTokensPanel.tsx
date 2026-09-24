@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
-import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useWallet } from "@/lib/wallet-context-new";
 import { useToast } from "@/hooks/use-toast";
-import { ensureSiwsSession } from "@/lib/siws-session";
 import { apiRequest } from "@/lib/queryClient";
 import { Eye, Trash2 } from "lucide-react";
 
@@ -15,27 +12,35 @@ function shorten(addr: string) {
 }
 
 export function WatchedTokensPanel() {
-  const { connected, address } = useWallet();
-  const { signMessage } = useSolanaWallet();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [tokens, setTokens] = useState<any[]>([]);
   const [cap, setCap] = useState(2);
-  const [tier, setTier] = useState("basic");
-  const signed = Boolean(connected && address && signMessage);
+  const [tier, setTier] = useState("free");
+  const [signed, setSigned] = useState(false);
 
-  function listPath() {
-    return signed ? "/api/tokens/watched" : "/api/tokens/watched-guest";
+  async function sessionReady() {
+    try {
+      const me = await fetch("/api/auth/me", { credentials: "include" });
+      setSigned(me.ok);
+      return me.ok;
+    } catch {
+      setSigned(false);
+      return false;
+    }
   }
 
   async function refresh() {
     try {
-      if (signed) await ensureSiwsSession({ address: address!, signMessage: signMessage! });
-      const res = await apiRequest("GET", listPath());
+      const hasSession = await sessionReady();
+      const res = await apiRequest(
+        "GET",
+        hasSession ? "/api/tokens/watched" : "/api/tokens/watched-guest",
+      );
       const data = await res.json();
       setTokens(data.tokens || []);
       setCap(data.cap ?? 2);
-      setTier(signed ? data.tier ?? "basic" : "free");
+      setTier(hasSession ? data.tier ?? "basic" : "free");
     } catch (error) {
       toast({
         title: "Watched tokens",
@@ -47,11 +52,12 @@ export function WatchedTokensPanel() {
 
   useEffect(() => {
     void refresh();
-  }, [connected, address]);
+  }, []);
 
   async function remove(mint: string) {
     try {
-      const path = signed ? `/api/tokens/watched/${mint}` : `/api/tokens/watched-guest/${mint}`;
+      const hasSession = await sessionReady();
+      const path = hasSession ? `/api/tokens/watched/${mint}` : `/api/tokens/watched-guest/${mint}`;
       await apiRequest("DELETE", path);
       setTokens((list) => list.filter((t) => t.mint !== mint));
     } catch (error) {
@@ -70,7 +76,7 @@ export function WatchedTokensPanel() {
           <Eye className="h-5 w-5 text-primary" />
           Watched tokens
           <span className="ml-auto text-xs font-normal text-muted-foreground">
-            {tokens.length}/{cap} · {tier}
+            {tokens.length}/{cap} · {signed ? tier : "free"}
           </span>
         </CardTitle>
       </CardHeader>
