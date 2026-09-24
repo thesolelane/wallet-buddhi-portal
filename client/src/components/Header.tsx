@@ -18,22 +18,30 @@ import logoImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM (1)_17610
 
 export function Header() {
   const [location, navigate] = useLocation();
-  const { connected, tier } = useWallet();
+  const { connected, tier, openConnectModal } = useWallet();
+
+  function goDashboard() {
+    if (!connected) {
+      openConnectModal();
+      return;
+    }
+    navigate("/dashboard");
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
       <div className="container mx-auto px-4 md:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <MobileNav connected={connected} />
             <button
               onClick={() => navigate("/")}
               className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-lg px-2 py-1 -ml-2"
               data-testid="button-home"
             >
-              <img 
-                src={logoImage} 
-                alt="Wallet Buddhi Logo" 
+              <img
+                src={logoImage}
+                alt="Wallet Buddhi Logo"
                 className="h-8 w-8 md:h-10 md:w-10 object-contain bg-transparent"
               />
               <div className="flex flex-col">
@@ -45,130 +53,106 @@ export function Header() {
             </button>
           </div>
 
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-1">
             {location !== "/watchlist" && (
-              <Button
-                variant="ghost"
-                onClick={() => navigate("/watchlist")}
-                data-testid="link-watchlist"
-                className="hover-elevate active-elevate-2"
-              >
+              <Button variant="ghost" onClick={() => navigate("/watchlist")} data-testid="link-watchlist">
                 <Eye className="h-4 w-4 mr-2" />
                 Watchlist
               </Button>
             )}
-            {connected && location !== "/dashboard" && (
-              <Button
-                variant="ghost"
-                onClick={() => navigate("/dashboard")}
-                data-testid="link-dashboard"
-                className="hover-elevate active-elevate-2"
-              >
+            {location !== "/dashboard" && (
+              <Button variant="ghost" onClick={goDashboard} data-testid="link-dashboard">
                 <LayoutDashboard className="h-4 w-4 mr-2" />
                 Dashboard
               </Button>
             )}
             {location !== "/lab" && (
-              <Button
-                variant="ghost"
-                onClick={() => navigate("/lab")}
-                data-testid="link-lab"
-                className="hover-elevate active-elevate-2"
-              >
+              <Button variant="ghost" onClick={() => navigate("/lab")} data-testid="link-lab">
                 <FlaskConical className="h-4 w-4 mr-2" />
                 Lab
               </Button>
             )}
             {location !== "/leaderboards" && (
-              <Button
-                variant="ghost"
-                onClick={() => navigate("/leaderboards")}
-                data-testid="link-leaderboards"
-                className="hover-elevate active-elevate-2"
-              >
+              <Button variant="ghost" onClick={() => navigate("/leaderboards")} data-testid="link-leaderboards">
                 <Trophy className="h-4 w-4 mr-2" />
                 Leaderboards
               </Button>
             )}
             {location !== "/bad-actors" && (
-              <Button
-                variant="ghost"
-                onClick={() => navigate("/bad-actors")}
-                data-testid="link-bad-actors"
-                className="hover-elevate active-elevate-2"
-              >
+              <Button variant="ghost" onClick={() => navigate("/bad-actors")} data-testid="link-bad-actors">
                 <AlertTriangle className="h-4 w-4 mr-2" />
                 Bad Actors
               </Button>
             )}
-            
-            <NavigationMenu>
-              <NavigationMenuList>
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger className="hover-elevate active-elevate-2" data-testid="button-help-menu">
-                    Help
-                  </NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <ul className="grid w-[400px] gap-2 p-4">
-                      <li>
-                        <NavigationMenuLink asChild>
-                          <button
-                            onClick={() => navigate("/getting-started")}
-                            className="flex items-start gap-3 rounded-md p-3 w-full hover-elevate active-elevate-2 text-left"
-                            data-testid="link-getting-started"
-                          >
-                            <BookOpen className="h-5 w-5 text-primary mt-0.5" />
-                            <div>
-                              <div className="font-semibold mb-1">Getting Started</div>
-                              <p className="text-sm text-muted-foreground">
-                                Learn how to connect your wallet and use Wallet Buddhi
-                              </p>
-                            </div>
-                          </button>
-                        </NavigationMenuLink>
-                      </li>
-                      <li>
-                        <NavigationMenuLink asChild>
-                          <button
-                            onClick={() => navigate("/security")}
-                            className="flex items-start gap-3 rounded-md p-3 w-full hover-elevate active-elevate-2 text-left"
-                            data-testid="link-security"
-                          >
-                            <Shield className="h-5 w-5 text-primary mt-0.5" />
-                            <div>
-                              <div className="font-semibold mb-1">Security Best Practices</div>
-                              <p className="text-sm text-muted-foreground">
-                                Essential tips to keep your wallet safe
-                              </p>
-                            </div>
-                          </button>
-                        </NavigationMenuLink>
-                      </li>
-                      <li>
-                        <NavigationMenuLink asChild>
-                          <button
-                            onClick={() => navigate("/faq")}
-                            className="flex items-start gap-3 rounded-md p-3 w-full hover-elevate active-elevate-2 text-left"
-                            data-testid="link-faq"
-                          >
-                            <HelpCircle className="h-5 w-5 text-primary mt-0.5" />
-                            <div>
-                              <div className="font-semibold mb-1">FAQ</div>
-                              <p className="text-sm text-muted-foreground">
-                                Answers to commonly asked questions
-                              </p>
-                            </div>
-                          </button>
-                        </NavigationMenuLink>
-                      </li>
-                    </ul>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-              </NavigationMenuList>
-            </NavigationMenu>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-1 md:gap-2 shrink-0">
+            <div className="hidden md:block">
+              <NavigationMenu>
+                <NavigationMenuList>
+                  <NavigationMenuItem>
+                    <NavigationMenuTrigger className="hover-elevate active-elevate-2" data-testid="button-help-menu">
+                      Help
+                    </NavigationMenuTrigger>
+                    <NavigationMenuContent>
+                      <ul className="grid w-[400px] gap-2 p-4">
+                        <li>
+                          <NavigationMenuLink asChild>
+                            <button
+                              onClick={() => navigate("/getting-started")}
+                              className="flex items-start gap-3 rounded-md p-3 w-full hover-elevate active-elevate-2 text-left"
+                              data-testid="link-getting-started"
+                            >
+                              <BookOpen className="h-5 w-5 text-primary mt-0.5" />
+                              <div>
+                                <div className="font-semibold mb-1">Getting Started</div>
+                                <p className="text-sm text-muted-foreground">
+                                  Learn how to connect your wallet and use Wallet Buddhi
+                                </p>
+                              </div>
+                            </button>
+                          </NavigationMenuLink>
+                        </li>
+                        <li>
+                          <NavigationMenuLink asChild>
+                            <button
+                              onClick={() => navigate("/security")}
+                              className="flex items-start gap-3 rounded-md p-3 w-full hover-elevate active-elevate-2 text-left"
+                              data-testid="link-security"
+                            >
+                              <Shield className="h-5 w-5 text-primary mt-0.5" />
+                              <div>
+                                <div className="font-semibold mb-1">Security Best Practices</div>
+                                <p className="text-sm text-muted-foreground">
+                                  Essential tips to keep your wallet safe
+                                </p>
+                              </div>
+                            </button>
+                          </NavigationMenuLink>
+                        </li>
+                        <li>
+                          <NavigationMenuLink asChild>
+                            <button
+                              onClick={() => navigate("/faq")}
+                              className="flex items-start gap-3 rounded-md p-3 w-full hover-elevate active-elevate-2 text-left"
+                              data-testid="link-faq"
+                            >
+                              <HelpCircle className="h-5 w-5 text-primary mt-0.5" />
+                              <div>
+                                <div className="font-semibold mb-1">FAQ</div>
+                                <p className="text-sm text-muted-foreground">
+                                  Answers to commonly asked questions
+                                </p>
+                              </div>
+                            </button>
+                          </NavigationMenuLink>
+                        </li>
+                      </ul>
+                    </NavigationMenuContent>
+                  </NavigationMenuItem>
+                </NavigationMenuList>
+              </NavigationMenu>
+            </div>
             {connected && <TierBadge tier={tier} />}
             <WalletButton />
             <ThemeToggle />
