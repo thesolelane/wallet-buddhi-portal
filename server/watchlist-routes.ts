@@ -11,6 +11,7 @@ import {
 } from "./siws-auth";
 import { scanOwnerWatchlist, scanWatchedWallet } from "./watchlist-monitor";
 import { registerWatchedTokenRoutes } from "./watched-token-routes";
+import { getWalletHoldings } from "./wallet-holdings";
 
 const challengeSchema = z.object({
   address: z.string().regex(SOLANA_ADDRESS_RE),
@@ -188,6 +189,18 @@ export function registerWatchlistRoutes(app: Express) {
     } catch (error) {
       console.error("Error listing tokens:", error);
       return res.status(500).json({ error: "Failed to list tokens" });
+    }
+  });
+
+  app.get("/api/wallets/:id/holdings", requireWalletAuth, async (req, res) => {
+    try {
+      const wallet = await assertOwnsWatch(req, res, req.params.id);
+      if (!wallet) return;
+      const result = await getWalletHoldings(wallet.pubkey);
+      return res.json(result);
+    } catch (error) {
+      console.error("Error listing holdings:", error);
+      return res.status(500).json({ error: "Failed to list holdings" });
     }
   });
 
