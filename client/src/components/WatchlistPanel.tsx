@@ -31,6 +31,8 @@ export function WatchlistPanel() {
   const [wallets, setWallets] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tokens, setTokens] = useState<any[]>([]);
+  const [holdings, setHoldings] = useState<any[]>([]);
+  const [holdingsNote, setHoldingsNote] = useState("");
   const [alerts, setAlerts] = useState<any[]>([]);
 
   useEffect(() => {
@@ -72,14 +74,18 @@ export function WatchlistPanel() {
   async function loadWallet(id: string) {
     setSelectedId(id);
     await withSession(async () => {
-      const [tokenRes, alertRes] = await Promise.all([
+      const [tokenRes, alertRes, holdRes] = await Promise.all([
         apiRequest("GET", `/api/wallets/${id}/tokens`),
         apiRequest("GET", `/api/wallets/${id}/alerts`),
+        apiRequest("GET", `/api/wallets/${id}/holdings`),
       ]);
       const tokenData = await tokenRes.json();
       const alertData = await alertRes.json();
+      const holdData = await holdRes.json();
       setTokens(tokenData.tokens || []);
       setAlerts(alertData.alerts || []);
+      setHoldings(holdData.holdings || []);
+      setHoldingsNote(holdData.ok ? "" : holdData.reason || "Could not load holdings");
     });
   }
 
@@ -108,6 +114,8 @@ export function WatchlistPanel() {
         setSelectedId(null);
         setTokens([]);
         setAlerts([]);
+        setHoldings([]);
+        setHoldingsNote("");
       }
       const res = await apiRequest("GET", "/api/wallets");
       const data = await res.json();
@@ -187,7 +195,7 @@ export function WatchlistPanel() {
         <CardContent className="space-y-4">
           {helius === false && (
             <div className="text-sm rounded-md border border-border bg-muted/40 p-3">
-              You can add and list wallets now. Scan for new buys needs a Helius key in Replit Secrets.
+              You can add and list wallets now. Holdings and Scan need a Helius key.
             </div>
           )}
           <div className="flex flex-col sm:flex-row gap-2">
@@ -252,17 +260,36 @@ export function WatchlistPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           {!selectedId ? (
-            <p className="text-sm text-muted-foreground">Select a watched wallet to see buys and alerts.</p>
+            <p className="text-sm text-muted-foreground">Select a watched wallet to see holdings and alerts.</p>
           ) : (
             <>
               <div>
-                <h3 className="text-sm font-semibold mb-2">Recent tokens</h3>
+                <h3 className="text-sm font-semibold mb-2">In this wallet</h3>
+                {holdingsNote ? (
+                  <p className="text-sm text-muted-foreground">{holdingsNote}</p>
+                ) : holdings.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No fungible tokens found.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {holdings.map((t) => (
+                      <button
+                        key={t.mint}
+                        className="w-full text-left p-2 rounded-md border hover:bg-muted/50"
+                        onClick={() => navigate(`/token/${t.mint}`)}
+                      >
+                        <div className="font-medium text-sm">{t.symbol || t.name || shorten(t.mint)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {Number(t.amount).toLocaleString(undefined, { maximumFractionDigits: 4 })} · {shorten(t.mint)}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold mb-2">New buys from Scan</h3>
                 {tokens.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {helius === false
-                      ? "No stored buys yet. Scan will work after Helius is added."
-                      : "No stored buys yet. Run a scan."}
-                  </p>
+                  <p className="text-sm text-muted-foreground">No stored buys yet. Run a scan to record new purchases.</p>
                 ) : (
                   <div className="space-y-2">
                     {tokens.slice(0, 12).map((t) => (
