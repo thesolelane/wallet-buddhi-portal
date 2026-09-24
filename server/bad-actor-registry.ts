@@ -1,15 +1,11 @@
-// Bad actor registry — tracks funder → [funded wallets] relationships.
-// In-memory only for now; extend to DB when Phase B.3 lands.
-//
-// Usage:
-//   recordFunding(funder, funded)   when a funder→funded funding link is detected
-//   flagCopycat(wallet)             when a copycat is confirmed for a wallet
-//   getRegistrySnapshot()           for monitoring / debug
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { badActorState } from "@shared/schema";
 
 export interface FunderEntry {
   funder: string;
   fundedWallets: Set<string>;
-  copycatCount: number; // how many of their funded wallets are flagged copycats
+  copycatCount: number;
   firstSeen: number;
   lastSeen: number;
 }
@@ -18,16 +14,88 @@ export interface BadActorReport {
   funder: string;
   fundedCount: number;
   copycatCount: number;
-  funded: string[]; // up to 25 most recent
-  flagged: boolean; // true when copycatCount >= FLAG_THRESHOLD
+  funded: string[];
+  flagged: boolean;
 }
 
-const FLAG_THRESHOLD = 3; // funded ≥3 confirmed copycats = flagged
+const FLAG_THRESHOLD = 3;
+const STATE_ID = "default";
 
 const funders = new Map<string, FunderEntry>();
 const knownCopycats = new Set<string>();
-// reverse index: wallet -> funder (most recent recorded)
 const walletToFunder = new Map<string, string>();
+let hydrated = false;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function schedulePersist() {
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    void persistState();
+  }, 500);
+}
+
+async function persistState() {
+  try {
+    const payload = {
+      funders: Array.from(funders.values()).map((e) => ({
+        funder: e.funder,
+        fundedWallets: Array.from(e.fundedWallets),
+        copycatCount: e.copycatCount,
+        firstSeen: e.firstSeen,
+        lastSeen: e.lastSeen,
+      })),
+      copycats: Array.from(knownCopycats),
+      walletToFunder: Array.from(walletToFunder.entries()),
+    };
+    await db
+      .insert(badActorState)
+      .values({ id: STATE_ID, payload, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: badActorState.id,
+        set: { payload, updatedAt: new Date() },
+      });
+  } catch (error) {
+    console.error("Failed to persist bad-actor state:", error);
+  }
+}
+
+export async function hydrateBadActorRegistry() {
+  if (hydrated) return;
+  hydrated = true;
+  try {
+    const rows = await db.select().from(badActorState).where(eq(badActorState.id, STATE_ID)).limit(1);
+    const payload = rows[0]?.payload as
+      | {
+          funders?: Array<{
+            funder: string;
+            fundedWallets: string[];
+            copycatCount: number;
+            firstSeen: number;
+            lastSeen: number;
+          }>;
+          copycats?: string[];
+          walletToFunder?: [string, string][];
+        }
+      | undefined;
+    if (!payload) return;
+    for (const e of payload.funders || []) {
+      funders.set(e.funder, {
+        funder: e.funder,
+        fundedWallets: new Set(e.fundedWallets || []),
+        copycatCount: e.copycatCount || 0,
+        firstSeen: e.firstSeen || Date.now(),
+        lastSeen: e.lastSeen || Date.now(),
+      });
+    }
+    for (const w of payload.copycats || []) knownCopycats.add(w);
+    for (const [wallet, funder] of payload.walletToFunder || []) {
+      walletToFunder.set(wallet, funder);
+    }
+  } catch (error) {
+    console.error("Failed to hydrate bad-actor state:", error);
+  }
+}
 
 export function recordFunding(funder: string, funded: string): void {
   if (!funder || !funded || funder === funded) return;
@@ -45,18 +113,17 @@ export function recordFunding(funder: string, funded: string): void {
   }
   if (!entry.fundedWallets.has(funded)) {
     entry.fundedWallets.add(funded);
-    // If this funded wallet was already flagged as copycat, bump count
     if (knownCopycats.has(funded)) entry.copycatCount += 1;
   }
   entry.lastSeen = now;
   walletToFunder.set(funded, funder);
+  schedulePersist();
 }
 
 export function flagCopycat(wallet: string): void {
   if (!wallet) return;
   if (knownCopycats.has(wallet)) return;
   knownCopycats.add(wallet);
-  // Bump funder's copycat count if we know who funded them
   const funder = walletToFunder.get(wallet);
   if (funder) {
     const entry = funders.get(funder);
@@ -64,6 +131,7 @@ export function flagCopycat(wallet: string): void {
       entry.copycatCount += 1;
     }
   }
+  schedulePersist();
 }
 
 export function getFunderOf(wallet: string): string | null {
