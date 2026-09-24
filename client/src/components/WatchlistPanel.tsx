@@ -63,6 +63,22 @@ export function WatchlistPanel() {
     }
   }
 
+  async function loadWalletsQuiet() {
+    try {
+      const me = await fetch("/api/auth/me", { credentials: "include" });
+      if (!me.ok) {
+        setReady(false);
+        return;
+      }
+      const res = await apiRequest("GET", "/api/wallets");
+      const data = await res.json();
+      setWallets(data.wallets || []);
+      setReady(true);
+    } catch {
+      setReady(false);
+    }
+  }
+
   async function refreshList() {
     await withSession(async () => {
       const res = await apiRequest("GET", "/api/wallets");
@@ -156,9 +172,7 @@ export function WatchlistPanel() {
   }
 
   useEffect(() => {
-    if (connected && address) {
-      void refreshList();
-    }
+    void loadWalletsQuiet();
   }, [connected, address]);
 
   if (!connected) {
@@ -172,7 +186,7 @@ export function WatchlistPanel() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            Connect a wallet to sign in. We never request private keys.
+            Connect and sign in to load saved wallets. Token watches stay on this browser without a wallet.
           </p>
           <Button onClick={openConnectModal}>Connect wallet</Button>
         </CardContent>
@@ -188,7 +202,7 @@ export function WatchlistPanel() {
             <Eye className="h-5 w-5 text-primary" />
             Watched wallets
             <span className="ml-auto text-xs font-normal text-muted-foreground">
-              {wallets.length}/5 · {ready ? "signed in" : "sign-in on first action"}
+              {wallets.length}/5 · {ready ? "signed in" : "saved — sign in to load"}
             </span>
           </CardTitle>
         </CardHeader>
@@ -197,6 +211,11 @@ export function WatchlistPanel() {
             <div className="text-sm rounded-md border border-border bg-muted/40 p-3">
               You can add and list wallets now. Holdings and Scan need a Helius key.
             </div>
+          )}
+          {!ready && (
+            <p className="text-sm text-muted-foreground">
+              Wallets are stored on the server. Click Refresh and approve the message once to load them.
+            </p>
           )}
           <div className="flex flex-col sm:flex-row gap-2">
             <Input
@@ -226,7 +245,7 @@ export function WatchlistPanel() {
           </div>
           {wallets.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No server-side watches yet. Add any public Solana address.
+              {ready ? "No watched wallets yet." : "No list loaded yet. Refresh after you sign."}
             </p>
           ) : (
             <div className="space-y-2">
