@@ -12,6 +12,7 @@ import {
 import { scanOwnerWatchlist, scanWatchedWallet } from "./watchlist-monitor";
 import { registerWatchedTokenRoutes } from "./watched-token-routes";
 import { getWalletHoldings } from "./wallet-holdings";
+import { getRugCheckSummary } from "./rugcheck-service";
 
 const challengeSchema = z.object({
   address: z.string().regex(SOLANA_ADDRESS_RE),
@@ -50,7 +51,23 @@ export function registerWatchlistRoutes(app: Express) {
     return res.json({
       helius: Boolean(process.env.HELIUS_API_KEY),
       dexscreener: true,
+      rugcheck: true,
     });
+  });
+
+  app.get("/api/token/:ca/rugcheck", async (req, res) => {
+    try {
+      const ca = req.params.ca;
+      if (!SOLANA_ADDRESS_RE.test(ca)) {
+        return res.status(400).json({ error: "Invalid Solana address" });
+      }
+      const result = await getRugCheckSummary(ca);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "RugCheck failed",
+      });
+    }
   });
 
   app.post("/api/auth/challenge", (req, res) => {
