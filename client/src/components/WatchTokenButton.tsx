@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
-import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { Button } from "@/components/ui/button";
-import { useWallet } from "@/lib/wallet-context-new";
 import { useToast } from "@/hooks/use-toast";
-import { ensureSiwsSession } from "@/lib/siws-session";
 import { apiRequest } from "@/lib/queryClient";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -16,26 +13,15 @@ export function WatchTokenButton({
   symbol?: string | null;
   name?: string | null;
 }) {
-  const { connected, address } = useWallet();
-  const { signMessage } = useSolanaWallet();
   const { toast } = useToast();
   const [watched, setWatched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cap, setCap] = useState(2);
   const [count, setCount] = useState(0);
-  const signed = Boolean(connected && address && signMessage);
-
-  function listPath() {
-    return signed ? "/api/tokens/watched" : "/api/tokens/watched-guest";
-  }
-  function itemPath() {
-    return signed ? `/api/tokens/watched/${mint}` : `/api/tokens/watched-guest/${mint}`;
-  }
 
   async function refresh() {
     try {
-      if (signed) await ensureSiwsSession({ address: address!, signMessage: signMessage! });
-      const res = await apiRequest("GET", listPath());
+      const res = await apiRequest("GET", "/api/tokens/watched-guest");
       const data = await res.json();
       setCap(data.cap ?? 2);
       setCount(data.count ?? 0);
@@ -47,18 +33,17 @@ export function WatchTokenButton({
 
   useEffect(() => {
     void refresh();
-  }, [connected, address, mint]);
+  }, [mint]);
 
   async function toggle() {
     setBusy(true);
     try {
-      if (signed) await ensureSiwsSession({ address: address!, signMessage: signMessage! });
       if (watched) {
-        await apiRequest("DELETE", itemPath());
+        await apiRequest("DELETE", `/api/tokens/watched-guest/${mint}`);
         setWatched(false);
         setCount((n) => Math.max(0, n - 1));
       } else {
-        const res = await apiRequest("POST", listPath(), {
+        const res = await apiRequest("POST", "/api/tokens/watched-guest", {
           mint,
           symbol: symbol || undefined,
           name: name || undefined,
