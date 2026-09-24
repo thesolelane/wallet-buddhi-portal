@@ -196,6 +196,12 @@ export const insertAlertSchema = createInsertSchema(alerts).omit({
 export type InsertAlert = z.infer<typeof insertAlertSchema>;
 export type Alert = typeof alerts.$inferSelect;
 
+export const badActorState = pgTable("bad_actor_state", {
+  id: varchar("id").primaryKey(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const signalTypeSchema = z.enum([
   "ticker_exact",
   "ticker_fuzzy",
