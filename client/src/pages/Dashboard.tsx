@@ -4,7 +4,7 @@ import { Header } from "@/components/Header";
 import { BotCard } from "@/components/BotCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Shield, ArrowLeft, Bot, Eye } from "lucide-react";
+import { Plus, Shield, ArrowLeft, Bot, Eye, Settings } from "lucide-react";
 import { useWallet } from "@/lib/wallet-context-new";
 import { ProtectedTokens } from "@/components/ProtectedTokens";
 
@@ -64,9 +64,10 @@ export default function Dashboard() {
     );
   };
 
-  const availableBots = tier === "pro_plus" ? bots : [];
+  const paid = tier === "pro" || tier === "pro+" || tier === "pro_plus";
+  const availableBots = tier === "pro_plus" || tier === "pro+" ? bots : [];
   const activeBots = availableBots.filter((bot) => bot.status === "active").length;
-  const maxBots = tier === "pro_plus" ? 5 : 0;
+  const maxBots = tier === "pro_plus" || tier === "pro+" ? 5 : 0;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -87,7 +88,7 @@ export default function Dashboard() {
               </Button>
               <div className="flex-1">
                 <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-                <p className="text-muted-foreground">Account, protection list, and Pro+ bots.</p>
+                <p className="text-muted-foreground">Account, settings, and Pro+ tools.</p>
               </div>
               <Button onClick={() => navigate("/watchlist")}>
                 <Eye className="h-4 w-4 mr-2" />
@@ -119,9 +120,47 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-primary" />
+                  Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-start justify-between gap-4 border-b pb-3">
+                  <div>
+                    <p className="font-medium">Token-watch alerts</p>
+                    <p className="text-muted-foreground">Mcap hit or % move on bookmarked tokens.</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {paid ? "Coming soon" : "Pro"}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-b pb-3">
+                  <div>
+                    <p className="font-medium">Wallet inbound notices</p>
+                    <p className="text-muted-foreground">Heads-up when a watched wallet gets a new mint.</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {paid ? "Coming soon" : "Pro"}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-medium">Deeper token reports</p>
+                    <p className="text-muted-foreground">RugCheck and extra Helius on inspect.</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {paid ? "Coming soon" : "Pro"}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
             <ProtectedTokens />
 
-            {tier === "pro_plus" ? (
+            {tier === "pro_plus" || tier === "pro+" ? (
               <div>
                 <div className="flex items-center justify-between mb-6">
                   <div>
