@@ -12,6 +12,8 @@ import type { TierType } from "@/components/TierBadge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useWallet } from "@/lib/wallet-context-new";
+import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
+import { ensureSiwsSession } from "@/lib/siws-session";
 
 interface UpgradeModalProps {
   open: boolean;
@@ -26,7 +28,8 @@ export function UpgradeModal({
   tier,
   onUpgrade,
 }: UpgradeModalProps) {
-  const { address: walletAddress } = useWallet();
+  const { address: walletAddress, connected, openConnectModal } = useWallet();
+  const { signMessage } = useSolanaWallet();
   const [paymentMethod, setPaymentMethod] = useState<"sol" | "cath">("sol");
   const [paymentUrl, setPaymentUrl] = useState<string>("");
   const [referenceKey, setReferenceKey] = useState<string>("");
@@ -84,14 +87,11 @@ export function UpgradeModal({
           setPaymentConfirmed(true);
           setIsVerifying(false);
           clearInterval(interval);
-          
           onUpgrade(tier);
-          
           toast({
             title: "Payment Confirmed!",
             description: `Successfully upgraded to ${config.name} tier.`,
           });
-
           setTimeout(() => {
             onOpenChange(false);
           }, 2000);
@@ -108,17 +108,19 @@ export function UpgradeModal({
   const handleCreatePayment = async () => {
     setIsCreatingPayment(true);
     try {
+      if (!connected || !walletAddress || !signMessage) {
+        openConnectModal();
+        throw new Error("Connect a wallet to upgrade");
+      }
+      await ensureSiwsSession({ address: walletAddress, signMessage });
       const res = await apiRequest("POST", "/api/payments/create", {
         walletAddress,
         tier: tier === "pro_plus" ? "pro+" : tier,
         currency: paymentMethod,
       });
-      
       const response = await res.json();
-
       setPaymentUrl(response.paymentUrl);
       setReferenceKey(response.referenceKey);
-      
       toast({
         title: "Payment Request Created",
         description: "Please complete the payment using your Solana wallet.",
@@ -126,7 +128,7 @@ export function UpgradeModal({
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create payment request. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create payment request.",
         variant: "destructive",
       });
     }
@@ -147,10 +149,9 @@ export function UpgradeModal({
         <DialogHeader>
           <DialogTitle>Upgrade to {config.name}</DialogTitle>
           <DialogDescription>
-            {paymentUrl 
+            {paymentUrl
               ? "Complete payment using your Solana wallet"
-              : `Choose your payment method to activate ${config.name} tier`
-            }
+              : `Choose your payment method to activate ${config.name} tier`}
           </DialogDescription>
         </DialogHeader>
 
@@ -233,27 +234,14 @@ export function UpgradeModal({
                         className="flex-1 px-3 py-2 text-xs bg-muted rounded-md font-mono"
                         data-testid="input-payment-url"
                       />
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        onClick={handleCopyUrl}
-                        data-testid="button-copy-url"
-                      >
+                      <Button size="icon" variant="outline" onClick={handleCopyUrl} data-testid="button-copy-url">
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
 
-                  <a
-                    href={paymentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <Button 
-                      className="w-full hover-elevate active-elevate-2"
-                      data-testid="button-open-wallet"
-                    >
+                  <a href={paymentUrl} target="_blank" rel="noopener noreferrer" className="block">
+                    <Button className="w-full hover-elevate active-elevate-2" data-testid="button-open-wallet">
                       Open in Wallet
                       <ExternalLink className="ml-2 h-4 w-4" />
                     </Button>
@@ -262,16 +250,9 @@ export function UpgradeModal({
                   <div className="flex items-center justify-center gap-2 pt-4">
                     {isVerifying && <Loader2 className="h-4 w-4 animate-spin" />}
                     <p className="text-sm text-muted-foreground">
-                      {isVerifying 
-                        ? "Checking for payment confirmation..." 
-                        : "Waiting for payment..."}
+                      {isVerifying ? "Checking for payment confirmation..." : "Waiting for payment..."}
                     </p>
                   </div>
-
-                  <p className="text-xs text-muted-foreground text-center pt-2">
-                    Open this URL in your Solana wallet (Phantom, Solflare, Backpack) to complete the payment.
-                    Your tier will be upgraded automatically once payment is confirmed.
-                  </p>
                 </>
               )}
             </div>
