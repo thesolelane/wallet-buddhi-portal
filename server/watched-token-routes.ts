@@ -18,6 +18,7 @@ const addSchema = z.object({
   mint: z.string().regex(SOLANA_ADDRESS_RE),
   symbol: z.string().max(32).optional(),
   name: z.string().max(64).optional(),
+  replaceMint: z.string().regex(SOLANA_ADDRESS_RE).optional(),
 });
 
 const GUEST_CAP = 2;
@@ -71,6 +72,17 @@ export function registerWatchedTokenRoutes(app: Express) {
     }
   });
 
+  app.delete("/api/tokens/watched-guest", async (req, res) => {
+    try {
+      const owner = guestOwner(req, res);
+      const rows = await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner)).returning();
+      return res.json({ removed: rows.length });
+    } catch (error) {
+      console.error("Error clearing guest tokens:", error);
+      return res.status(500).json({ error: "Failed to clear watched tokens" });
+    }
+  });
+
   app.post("/api/tokens/watched-guest", async (req, res) => {
     try {
       const data = addSchema.parse(req.body);
@@ -81,10 +93,18 @@ export function registerWatchedTokenRoutes(app: Express) {
         .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, data.mint)))
         .limit(1);
       if (existingRows[0]) return res.json(existingRows[0]);
-      const all = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
+      let all = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
       if (all.length >= GUEST_CAP) {
-        return res.status(403).json({
-          error: "Free plan allows 2 watched tokens. Remove one from Watchlist first.",
+        if (data.replaceMint) {
+          await db
+            .delete(watchedTokens)
+            .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, data.replaceMint)));
+          all = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
+        }
+      }
+      if (all.length >= GUEST_CAP) {
+        return res.status(409).json({
+          error: "Free plan allows 2 watched tokens. Choose one to replace.",
           cap: GUEST_CAP,
           tokens: all,
         });
