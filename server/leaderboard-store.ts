@@ -1,19 +1,14 @@
 import { pool } from "./db";
 import {
-  getBumpOperators,
-  getCopycatLeaders,
-  getPersistentPairs,
-  getProfitableTraders,
-  getRepeatSnipers,
   recordBump,
   recordLeader,
   recordPair,
   recordSniper,
   recordTraderSnapshot,
 } from "./session-registry";
+import { dumpRegistry } from "./session-registry-dump";
 
 let ready: Promise<void> | null = null;
-let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function ensureTable() {
   if (!ready) {
@@ -40,9 +35,9 @@ export async function hydrateLeaderboards() {
       recordSniper({
         wallet: row.wallet,
         ca,
-        priorityFeeSol: 0,
-        jitoTipSol: 0,
-        stillHolding: true,
+        priorityFeeSol: Number(row.totalPriorityFeeSol || 0) / Math.max((row.tokens || []).length, 1),
+        jitoTipSol: Number(row.totalJitoTipSol || 0) / Math.max((row.tokens || []).length, 1),
+        stillHolding: (row.snipesExited || 0) === 0,
         timestamp: row.lastSeen || 0,
       });
     }
@@ -52,26 +47,29 @@ export async function hydrateLeaderboards() {
       recordBump({
         wallet: row.wallet,
         ca,
-        feesSol: 0,
-        roundTrips: 0,
-        lastSeen: row.lastActive || 0,
+        feesSol: Number(row.totalFeesSol || 0) / Math.max((row.tokens || []).length, 1),
+        roundTrips: Number(row.totalRoundTrips || 0) / Math.max((row.tokens || []).length, 1),
+        lastSeen: row.lastActive || row.lastSeen || 0,
       });
     }
   }
   for (const row of payload.leaders || []) {
-    recordLeader({
-      leader: row.leader,
-      follower: (row.followers && row.followers[0]) || row.leader,
-      sharedTokens: row.tokens || [],
-      avgLagSec: row.avgLagSec || 0,
-      timestamp: row.lastSeen || 0,
-    });
+    const followers = row.followers || [];
+    for (const follower of followers.length ? followers : [row.leader]) {
+      recordLeader({
+        leader: row.leader,
+        follower,
+        sharedTokens: row.tokens || row.totalSharedTokens || [],
+        avgLagSec: row.avgLagSec || 0,
+        timestamp: row.lastSeen || 0,
+      });
+    }
   }
   for (const row of payload.traders || []) {
     recordTraderSnapshot({
       wallet: row.wallet,
       realizedSol: row.realizedSol || 0,
-      tokensTraded: row.tokens || [],
+      tokensTraded: row.tokens || row.tokensTraded || [],
       winningTokenCount: row.winningTokens || 0,
       losingTokenCount: row.losingTokens || 0,
       timestamp: row.lastSeen || 0,
@@ -81,9 +79,9 @@ export async function hydrateLeaderboards() {
     recordPair({
       walletA: row.walletA,
       walletB: row.walletB,
-      score: row.score || 0,
-      sharedTokens: [],
-      sharedCounterparties: [],
+      score: row.totalScore || row.score || 0,
+      sharedTokens: row.sharedTokens || [],
+      sharedCounterparties: row.sharedCounterparties || [],
       directTransfers: row.directTransfers || 0,
       timestamp: row.lastSeen || 0,
     });
@@ -92,14 +90,7 @@ export async function hydrateLeaderboards() {
 
 export async function persistLeaderboards() {
   await ensureTable();
-  const payload = {
-    snipers: getRepeatSnipers(1),
-    bumps: getBumpOperators(1),
-    leaders: getCopycatLeaders(1),
-    traders: getProfitableTraders(200),
-    pairs: getPersistentPairs(0),
-    savedAt: Date.now(),
-  };
+  const payload = { ...dumpRegistry(), savedAt: Date.now() };
   await pool.query(
     `INSERT INTO leaderboard_state (id, payload, updated_at)
      VALUES ('default', $1::jsonb, NOW())
@@ -109,11 +100,5 @@ export async function persistLeaderboards() {
 }
 
 export function scheduleLeaderboardPersist() {
-  if (flushTimer) return;
-  flushTimer = setTimeout(() => {
-    flushTimer = null;
-    void persistLeaderboards().catch((error) => {
-      console.error("leaderboard persist failed", error);
-    });
-  }, 1500);
+  void persistLeaderboards().catch((error) => console.error("leaderboard persist failed", error));
 }
