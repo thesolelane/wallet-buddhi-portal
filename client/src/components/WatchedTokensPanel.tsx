@@ -17,30 +17,14 @@ export function WatchedTokensPanel() {
   const [tokens, setTokens] = useState<any[]>([]);
   const [cap, setCap] = useState(2);
   const [tier, setTier] = useState("free");
-  const [signed, setSigned] = useState(false);
-
-  async function sessionReady() {
-    try {
-      const me = await fetch("/api/auth/me", { credentials: "include" });
-      setSigned(me.ok);
-      return me.ok;
-    } catch {
-      setSigned(false);
-      return false;
-    }
-  }
 
   async function refresh() {
     try {
-      const hasSession = await sessionReady();
-      const res = await apiRequest(
-        "GET",
-        hasSession ? "/api/tokens/watched" : "/api/tokens/watched-guest",
-      );
+      const res = await apiRequest("GET", "/api/tokens/watched-guest");
       const data = await res.json();
       setTokens(data.tokens || []);
       setCap(data.cap ?? 2);
-      setTier(hasSession ? data.tier ?? "basic" : "free");
+      setTier("free");
     } catch (error) {
       toast({
         title: "Watched tokens",
@@ -56,13 +40,24 @@ export function WatchedTokensPanel() {
 
   async function remove(mint: string) {
     try {
-      const hasSession = await sessionReady();
-      const path = hasSession ? `/api/tokens/watched/${mint}` : `/api/tokens/watched-guest/${mint}`;
-      await apiRequest("DELETE", path);
+      await apiRequest("DELETE", `/api/tokens/watched-guest/${mint}`);
       setTokens((list) => list.filter((t) => t.mint !== mint));
     } catch (error) {
       toast({
         title: "Could not remove",
+        description: error instanceof Error ? error.message : "Failed",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function clearAll() {
+    try {
+      await apiRequest("DELETE", "/api/tokens/watched-guest");
+      setTokens([]);
+    } catch (error) {
+      toast({
+        title: "Could not clear",
         description: error instanceof Error ? error.message : "Failed",
         variant: "destructive",
       });
@@ -76,7 +71,7 @@ export function WatchedTokensPanel() {
           <Eye className="h-5 w-5 text-primary" />
           Watched tokens
           <span className="ml-auto text-xs font-normal text-muted-foreground">
-            {tokens.length}/{cap} · {signed ? tier : "free"}
+            {tokens.length}/{cap} · {tier}
           </span>
         </CardTitle>
       </CardHeader>
@@ -86,17 +81,22 @@ export function WatchedTokensPanel() {
             Inspect a token and tap Watch token. No wallet needed for 2 free watches.
           </p>
         ) : (
-          tokens.map((t) => (
-            <div key={t.id} className="flex items-center gap-2 p-2 rounded-md border">
-              <button className="flex-1 text-left" onClick={() => navigate(`/token/${t.mint}`)}>
-                <div className="text-sm font-medium">{t.symbol || t.name || shorten(t.mint)}</div>
-                <div className="text-xs font-mono text-muted-foreground">{shorten(t.mint)}</div>
-              </button>
-              <Button size="icon" variant="ghost" onClick={() => remove(t.mint)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))
+          <>
+            {tokens.map((t) => (
+              <div key={t.id} className="flex items-center gap-2 p-2 rounded-md border">
+                <button className="flex-1 text-left" onClick={() => navigate(`/token/${t.mint}`)}>
+                  <div className="text-sm font-medium">{t.symbol || t.name || shorten(t.mint)}</div>
+                  <div className="text-xs font-mono text-muted-foreground">{shorten(t.mint)}</div>
+                </button>
+                <Button size="icon" variant="ghost" onClick={() => remove(t.mint)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={() => void clearAll()}>
+              Clear all
+            </Button>
+          </>
         )}
       </CardContent>
     </Card>
