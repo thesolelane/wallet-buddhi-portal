@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { storage } from "./storage";
 import {
@@ -44,8 +44,51 @@ async function assertOwnsWatch(req: Request, res: Response, watchId: string) {
   return wallet;
 }
 
+function bindPaymentToSession(req: Request, res: Response, next: NextFunction) {
+  const owner = sessionWallet(req);
+  if (!owner) {
+    return res.status(401).json({ error: "Sign in required" });
+  }
+  const claimed = typeof req.body?.walletAddress === "string" ? req.body.walletAddress : "";
+  if (claimed && claimed !== owner) {
+    return res.status(403).json({ error: "Payment wallet must match the signed-in wallet" });
+  }
+  req.body = { ...req.body, walletAddress: owner };
+  next();
+}
+
 export function registerWatchlistRoutes(app: Express) {
   registerWatchedTokenRoutes(app);
+
+  app.post("/api/payments/create", requireWalletAuth, bindPaymentToSession);
+  app.post("/api/payments/verify", requireWalletAuth, async (req, res, next) => {
+    try {
+      const owner = sessionWallet(req);
+      const referenceKey = typeof req.body?.referenceKey === "string" ? req.body.referenceKey : "";
+      if (!referenceKey) return res.status(400).json({ error: "referenceKey required" });
+      const transaction = await storage.getPaymentTransaction(referenceKey);
+      if (!transaction) return res.status(404).json({ error: "Payment transaction not found" });
+      if (transaction.walletAddress !== owner) {
+        return res.status(403).json({ error: "Payment does not belong to this wallet" });
+      }
+      next();
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to authorize payment" });
+    }
+  });
+  app.get("/api/payments/status/:referenceKey", requireWalletAuth, async (req, res, next) => {
+    try {
+      const owner = sessionWallet(req);
+      const transaction = await storage.getPaymentTransaction(req.params.referenceKey);
+      if (!transaction) return res.status(404).json({ error: "Transaction not found" });
+      if (transaction.walletAddress !== owner) {
+        return res.status(403).json({ error: "Payment does not belong to this wallet" });
+      }
+      next();
+    } catch {
+      return res.status(500).json({ error: "Failed to authorize payment" });
+    }
+  });
 
   app.get("/api/health/data-sources", (_req, res) => {
     return res.json({
