@@ -24,8 +24,17 @@ const addSchema = z.object({
 
 const GUEST_CAP = 2;
 const GUEST_COOKIE = "wb.vid";
+
+const MERGE_NOTICE_COOKIE = "wb.watch-merge";
 const VID_RE = /^[a-f0-9]{32}$/i;
 
+const guestCookieOptions = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: false,
+  maxAge: 365 * 24 * 60 * 60 * 1000,
+  path: "/",
+};
 function capForTier(tier: string | undefined) {
   if (!tier) return TOKEN_WATCH_CAPS.basic;
   return TOKEN_WATCH_CAPS[tier] ?? TOKEN_WATCH_CAPS.basic;
@@ -48,6 +57,7 @@ async function guestOwner(req: Request, res: Response) {
     vid = crypto.randomBytes(16).toString("hex");
   }
   vid = vid.toLowerCase();
+  let trimmed = false;
 
   // Older versions could save watches under the cookie ID before the client
   // supplied its stable local ID. Reconcile both identities so those rows do
@@ -59,7 +69,7 @@ async function guestOwner(req: Request, res: Response) {
   ) {
     const canonicalOwner = `guest:${headerVid.toLowerCase()}`;
     const legacyOwner = `guest:${cookieVid.toLowerCase()}`;
-    await db.transaction(async (tx) => {
+    trimmed = await db.transaction(async (tx) => {
       // Serialize reconciliation with saves to either guest identity. Lock in
       // a consistent order so opposite-direction merges cannot deadlock.
       for (const owner of [canonicalOwner, legacyOwner].sort()) {
@@ -102,38 +112,43 @@ async function guestOwner(req: Request, res: Response) {
       if (legacyTokens.length > 0) {
         await tx.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, legacyOwner));
       }
+      // Duplicates shared by both identities were not lost.
+      return [...canonicalTokens, ...legacyTokens].some((token) => !retainedMints.has(token.mint));
     });
+    if (trimmed) res.cookie(MERGE_NOTICE_COOKIE, vid, guestCookieOptions);
   }
 
-  res.cookie(GUEST_COOKIE, vid, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: false,
-    maxAge: 365 * 24 * 60 * 60 * 1000,
-    path: "/",
-  });
-  return `guest:${vid}`;
+  res.cookie(GUEST_COOKIE, vid, guestCookieOptions);
+  return { owner: `guest:${vid}`, trimmed };
 }
 
 export function registerWatchedTokenRoutes(app: Express) {
   app.get("/api/tokens/watched-guest", async (req, res) => {
     try {
-      const owner = await guestOwner(req, res);
+      const { owner, trimmed } = await guestOwner(req, res);
       const tokens = await db
         .select()
         .from(watchedTokens)
         .where(eq(watchedTokens.ownerPubkey, owner))
         .orderBy(desc(watchedTokens.addedAt));
-      return res.json({ tokens, cap: GUEST_CAP, count: tokens.length, tier: "basic" });
+      return res.json({
+        tokens, cap: GUEST_CAP, count: tokens.length, tier: "basic",
+        mergeTrimmed: trimmed || readCookie(req, MERGE_NOTICE_COOKIE) === owner.slice("guest:".length),
+      });
     } catch (error) {
       console.error("Error listing guest tokens:", error);
       return res.status(500).json({ error: "Failed to list watched tokens" });
     }
   });
 
+  app.post("/api/tokens/watched-guest/ack-merge", (req, res) => {
+    res.clearCookie(MERGE_NOTICE_COOKIE, { path: "/" });
+    return res.json({ acknowledged: true });
+  });
+
   app.delete("/api/tokens/watched-guest", async (req, res) => {
     try {
-      const owner = await guestOwner(req, res);
+      const { owner } = await guestOwner(req, res);
       const rows = await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner)).returning();
       return res.json({ removed: rows.length });
     } catch (error) {
@@ -145,7 +160,7 @@ export function registerWatchedTokenRoutes(app: Express) {
   app.post("/api/tokens/watched-guest", async (req, res) => {
     try {
       const data = addSchema.parse(req.body);
-      const owner = await guestOwner(req, res);
+      const { owner } = await guestOwner(req, res);
       const result = await db.transaction(async (tx) => {
         // Lock the guest identity, not its rows: a new guest has no rows to lock.
         // The transaction-scoped lock also works across server instances.
@@ -200,7 +215,7 @@ export function registerWatchedTokenRoutes(app: Express) {
       if (!SOLANA_ADDRESS_RE.test(mint)) {
         return res.status(400).json({ error: "Invalid mint" });
       }
-      const owner = await guestOwner(req, res);
+      const { owner } = await guestOwner(req, res);
       const rows = await db
         .delete(watchedTokens)
         .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, mint)))

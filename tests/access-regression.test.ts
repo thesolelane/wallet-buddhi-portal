@@ -101,6 +101,10 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
   const mergedOwner = `guest:${mergedGuestId}`;
   const legacyGuestId = crypto.randomBytes(16).toString("hex");
   const legacyOwner = `guest:${legacyGuestId}`;
+  const uiGuestId = crypto.randomBytes(16).toString("hex");
+  const uiOwner = `guest:${uiGuestId}`;
+  const uiLegacyId = crypto.randomBytes(16).toString("hex");
+  const uiLegacyOwner = `guest:${uiLegacyId}`;
   const signer = nacl.sign.keyPair();
   const address = new PublicKey(signer.publicKey).toBase58();
   const watchedAddress = new PublicKey(nacl.sign.keyPair().publicKey).toBase58();
@@ -223,6 +227,7 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       const listing = await fetch(`${base}/api/tokens/watched-guest`, { headers: guestHeaders });
       const data = await listing.json();
       assert.equal(data.count, 2);
+      assert.equal(data.mergeTrimmed, false);
       assert.deepEqual(new Set(data.tokens.map((token: { mint: string }) => token.mint)), new Set(mints.slice(0, 2)));
     });
 
@@ -236,16 +241,58 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
         { ownerPubkey: legacyOwner, mint: newerMint, addedAt: new Date("2024-03-01T00:00:00Z") },
       ]);
       const headers = { "x-wb-vid": mergedGuestId, cookie: `wb.vid=${legacyGuestId}` };
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const response = await fetch(`${base}/api/tokens/watched-guest`, { headers });
-        assert.equal(response.status, 200, await response.clone().text());
-        const data = await response.json();
-        assert.equal(data.count, 2);
-        assert.deepEqual(new Set(data.tokens.map((token: { mint: string }) => token.mint)),
-          new Set([canonicalMint, newerMint]));
-      }
+      const first = await fetch(`${base}/api/tokens/watched-guest`, { headers });
+      assert.equal(first.status, 200, await first.clone().text());
+      const data = await first.json();
+      assert.equal(data.count, 2);
+      assert.equal(data.mergeTrimmed, true);
+      assert.deepEqual(new Set(data.tokens.map((token: { mint: string }) => token.mint)),
+        new Set([canonicalMint, newerMint]));
+      const noticeCookie = first.headers.get("set-cookie")?.match(/wb\.watch-merge=([^;]+)/)?.[1];
+      assert.equal(noticeCookie, mergedGuestId);
+      const currentHeaders = { "x-wb-vid": mergedGuestId, cookie: `wb.vid=${mergedGuestId}; wb.watch-merge=${noticeCookie}` };
+      const next = await fetch(`${base}/api/tokens/watched-guest`, { headers: currentHeaders });
+      assert.equal((await next.json()).mergeTrimmed, true, "Notice persists until acknowledged");
+      const acknowledged = await fetch(`${base}/api/tokens/watched-guest/ack-merge`, { method: "POST", headers: currentHeaders });
+      assert.equal(acknowledged.status, 200);
+      assert.match(acknowledged.headers.get("set-cookie") || "", /wb\.watch-merge=;/);
+      const after = await fetch(`${base}/api/tokens/watched-guest`, {
+        headers: { "x-wb-vid": mergedGuestId, cookie: `wb.vid=${mergedGuestId}` },
+      });
+      assert.equal((await after.json()).mergeTrimmed, false);
       assert.equal((await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, mergedOwner))).length, 2);
       assert.deepEqual(await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, legacyOwner)), []);
+    });
+
+    await t.test("guest watchlist shows a trimmed merge notice until dismissed", async () => {
+      await db.insert(watchedTokens).values([
+        { ownerPubkey: uiOwner, mint: mints[0] },
+        { ownerPubkey: uiOwner, mint: mints[1] },
+        { ownerPubkey: uiLegacyOwner, mint: mints[2] },
+      ]);
+      await browser!.evaluate(`localStorage.setItem("wb.vid", ${JSON.stringify(uiGuestId)})`);
+      await browser!.command("Network.enable");
+      await browser!.command("Network.setCookie", {
+        name: "wb.vid", value: uiLegacyId, url: base, httpOnly: true, path: "/",
+      });
+      await browser!.visit(`${base}/watchlist`);
+      await waitFor(async () => await browser!.evaluate<boolean>(
+        "!!document.querySelector('[data-testid=\"guest-merge-notice\"]')",
+      ) || undefined, "guest merge notice");
+      assert.equal(await browser!.evaluate<boolean>(
+        "document.querySelector('[data-testid=\"guest-merge-notice\"]')?.textContent?.includes('older browser ID') === true",
+      ), true);
+      await browser!.evaluate("document.querySelector('[data-testid=\"guest-merge-notice\"] button').click()");
+      await waitFor(async () => await browser!.evaluate<boolean>(
+        "!document.querySelector('[data-testid=\"guest-merge-notice\"]')",
+      ) || undefined, "dismissed merge notice");
+      await browser!.visit(`${base}/watchlist`);
+      await waitFor(async () => await browser!.evaluate<boolean>(
+        "document.querySelector('main')?.textContent?.includes('Watched tokens') === true",
+      ) || undefined, "reloaded watchlist");
+      assert.equal(await browser!.evaluate<boolean>(
+        "!!document.querySelector('[data-testid=\"guest-merge-notice\"]')",
+      ), false);
     });
 
     await t.test("simultaneous guest saves and replacements respect the two-token cap", async () => {
@@ -361,6 +408,8 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, mergedOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, legacyOwner));
+    await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, uiOwner));
+    await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, uiLegacyOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, address));
     await db.delete(watchedWallets).where(eq(watchedWallets.ownerPubkey, address));
     await db.delete(walletAccounts).where(eq(walletAccounts.walletAddress, address));

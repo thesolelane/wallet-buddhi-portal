@@ -17,6 +17,7 @@ export function WatchedTokensPanel() {
   const [tokens, setTokens] = useState<any[]>([]);
   const [cap, setCap] = useState(2);
   const [tier, setTier] = useState("free");
+  const [mergeTrimmed, setMergeTrimmed] = useState(false);
 
   async function refresh() {
     try {
@@ -25,10 +26,24 @@ export function WatchedTokensPanel() {
       setTokens(data.tokens || []);
       setCap(data.cap ?? 2);
       setTier("free");
+      setMergeTrimmed(Boolean(data.mergeTrimmed));
     } catch (error) {
       toast({
         title: "Watched tokens",
         description: error instanceof Error ? error.message : "Failed to load",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function dismissMergeNotice() {
+    try {
+      await apiRequest("POST", "/api/tokens/watched-guest/ack-merge");
+      setMergeTrimmed(false);
+    } catch (error) {
+      toast({
+        title: "Could not dismiss notice",
+        description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
     }
@@ -76,6 +91,17 @@ export function WatchedTokensPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
+        {mergeTrimmed && (
+          <div role="status" data-testid="guest-merge-notice" className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+            <p>
+              Some tokens saved under an older browser ID were not kept when your watchlists were combined.
+              Free guest watchlists can hold up to {cap} tokens; your current saved tokens are shown below.
+            </p>
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => void dismissMergeNotice()}>
+              Dismiss
+            </Button>
+          </div>
+        )}
         {tokens.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Inspect a token and tap Watch token. No wallet needed for 2 free watches.
