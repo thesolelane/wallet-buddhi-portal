@@ -38,6 +38,17 @@ task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
 
+[[workflows.workflow]]
+name = "access"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run check && npm run test:access"
+
+[workflows.workflow.metadata]
+isValidation = true
+
 [agent]
 integrations = ["javascript_mem_db:1.0.0"]
 
