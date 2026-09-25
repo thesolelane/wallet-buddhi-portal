@@ -160,6 +160,50 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert.equal(await browser!.evaluate<boolean>("!!document.querySelector('h1') && document.querySelector('h1').textContent === 'Dashboard'"), false);
     });
 
+    await t.test("connected wallet can navigate to Dashboard on desktop and mobile and visit it directly", async () => {
+      // Inject a local Phantom-compatible provider before the app initializes.
+      // This exercises the real wallet adapter and UI without requiring an extension or network wallet.
+      await browser!.command("Page.addScriptToEvaluateOnNewDocument", {
+        source: `(() => {
+          const bytes = ${JSON.stringify(Array.from(signer.publicKey))};
+          const publicKey = { toBytes: () => Uint8Array.from(bytes) };
+          const provider = {
+            isPhantom: true,
+            isConnected: false,
+            publicKey,
+            async connect() { this.isConnected = true; return { publicKey }; },
+            async disconnect() { this.isConnected = false; },
+            on() {},
+            off() {},
+          };
+          Object.defineProperty(window, "phantom", { value: { solana: provider }, configurable: true });
+        })();`,
+      });
+      await browser!.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+      await browser!.visit(`${base}/`);
+      await waitFor(async () => await browser!.evaluate<boolean>("!!document.querySelector('[data-testid=\"button-wallet-connect\"]')") || undefined, "wallet connect button");
+      await browser!.evaluate("document.querySelector('[data-testid=\"button-wallet-connect\"]').click()");
+      await waitFor(async () => await browser!.evaluate<boolean>("!!document.querySelector('.wallet-adapter-modal-list button')") || undefined, "wallet chooser");
+      await browser!.evaluate(`Array.from(document.querySelectorAll('.wallet-adapter-modal-list button')).find(button => button.textContent?.includes('Phantom')).click()`);
+      await waitFor(async () => await browser!.evaluate<boolean>("!!document.querySelector('[data-testid=\"button-wallet-connected\"]')") || undefined, "connected wallet");
+
+      assert.equal(await browser!.evaluate<boolean>("!!document.querySelector('[data-testid=\"link-dashboard\"]')?.getClientRects().length"), true);
+      await browser!.evaluate("document.querySelector('[data-testid=\"link-dashboard\"]').click()");
+      await waitFor(async () => await browser!.evaluate<boolean>("location.pathname === '/dashboard' && document.querySelector('h1')?.textContent === 'Dashboard'") || undefined, "desktop Dashboard navigation");
+
+      await browser!.evaluate("document.querySelector('[data-testid=\"button-home\"]').click()");
+      await waitFor(async () => await browser!.evaluate<boolean>("location.pathname === '/'") || undefined, "home navigation");
+      await browser!.command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+      await browser!.evaluate("document.querySelector('[data-testid=\"button-mobile-nav\"]').click()");
+      await waitFor(async () => await browser!.evaluate<boolean>("!!document.querySelector('[data-testid=\"link-mobile-dashboard\"]')?.getClientRects().length") || undefined, "mobile Dashboard navigation");
+      await browser!.evaluate("document.querySelector('[data-testid=\"link-mobile-dashboard\"]').click()");
+      await waitFor(async () => await browser!.evaluate<boolean>("location.pathname === '/dashboard' && document.querySelector('h1')?.textContent === 'Dashboard'") || undefined, "mobile Dashboard page");
+
+      await browser!.visit(`${base}/dashboard`);
+      await waitFor(async () => await browser!.evaluate<boolean>("location.pathname === '/dashboard' && document.querySelector('h1')?.textContent === 'Dashboard' && !!document.querySelector('[data-testid=\"button-wallet-connected\"]')") || undefined, "connected direct Dashboard access");
+      assert.equal(await browser!.evaluate<string>("document.querySelector('main')?.textContent?.includes('On-Chain Account Status') ? 'account' : 'missing'"), "account");
+    });
+
     const guestHeaders = { "x-wb-vid": guestId };
     await t.test("guest can add two tokens but not a third", async () => {
       for (const mint of mints.slice(0, 2)) {

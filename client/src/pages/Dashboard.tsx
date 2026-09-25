@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { Header } from "@/components/Header";
 import { BotCard } from "@/components/BotCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +22,7 @@ interface BotData {
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const { connected, address, tier, onChainTier } = useWallet();
+  const { wallet, autoConnect } = useSolanaWallet();
   const [bots, setBots] = useState<BotData[]>([
     {
       id: "bot-1",
@@ -45,10 +47,15 @@ export default function Dashboard() {
   ]);
 
   useEffect(() => {
-    if (!connected) {
-      navigate("/");
+    if (connected) return;
+    // A saved wallet is reconnected after the first render. Give the adapter
+    // time to finish before treating this visit as unauthenticated.
+    if (autoConnect && wallet) {
+      const timeout = window.setTimeout(() => navigate("/"), 10000);
+      return () => window.clearTimeout(timeout);
     }
-  }, [connected, navigate]);
+    navigate("/");
+  }, [connected, autoConnect, wallet, navigate]);
 
   if (!connected) {
     return null;
