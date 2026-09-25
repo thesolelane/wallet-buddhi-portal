@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp, Target, AlertTriangle, GitBranch, Eye, EyeOff, Sparkles, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { addWalletToWatchlist, isWalletWatched, removeWalletFromWatchlist } from "@/lib/watchlist";
+import { WatchWalletButton } from "@/components/WatchWalletButton";
 
 type SwapDirection = "buy" | "sell" | "unknown";
 
@@ -176,7 +176,7 @@ export default function Wallet() {
                 {address} <Copy className="w-3 h-3 inline-block ml-1 opacity-50" />
               </button>
             </div>
-            <WalletWatchToggle address={address} />
+            <WatchWalletButton address={address} />
             <a
               href={`https://solscan.io/account/${address}`}
               target="_blank"
