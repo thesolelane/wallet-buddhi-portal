@@ -1,31 +1,15 @@
-/**
- * Sign-In With Solana (SIWS-style) auth.
- *
- * Industry pattern (Phantom SIWS / CAIP-74):
- *   1. Server issues a one-time nonce + canonical message
- *   2. Wallet signs the message (private key never leaves the wallet)
- *   3. Server verifies Ed25519 signature with tweetnacl
- *   4. Server creates a short-lived session bound to the pubkey
- */
 import type { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 import { PublicKey } from "@solana/web3.js";
+import { pool } from "./db";
 
 export const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-const NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes (SIWS recommendation)
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+const NONCE_TTL_MS = 5 * 60 * 1000;
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const MAX_NONCES_PER_ADDRESS = 5;
-
-interface NonceRecord {
-  nonce: string;
-  address: string;
-  message: string;
-  issuedAt: number;
-  expiresAt: number;
-}
 
 declare module "express-session" {
   interface SessionData {
@@ -34,21 +18,27 @@ declare module "express-session" {
   }
 }
 
-const nonceStore = new Map<string, NonceRecord>(); // key = `${address}:${nonce}`
+let tableReady: Promise<void> | null = null;
 
-function pruneExpired() {
-  const now = Date.now();
-  nonceStore.forEach((rec, key) => {
-    if (rec.expiresAt <= now) nonceStore.delete(key);
-  });
+async function ensureTable() {
+  if (!tableReady) {
+    tableReady = pool.query(`
+      CREATE TABLE IF NOT EXISTS siws_challenges (
+        challenge_key TEXT PRIMARY KEY,
+        address TEXT NOT NULL,
+        nonce TEXT NOT NULL,
+        message TEXT NOT NULL,
+        issued_at BIGINT NOT NULL,
+        expires_at BIGINT NOT NULL
+      )
+    `).then(() => undefined);
+  }
+  await tableReady;
 }
 
-function countNoncesForAddress(address: string): number {
-  let n = 0;
-  nonceStore.forEach((rec) => {
-    if (rec.address === address) n += 1;
-  });
-  return n;
+async function pruneExpired() {
+  await ensureTable();
+  await pool.query("DELETE FROM siws_challenges WHERE expires_at <= $1", [Date.now()]);
 }
 
 export function getAuthDomain(req: Request): string {
@@ -82,15 +72,18 @@ export function buildSiwsMessage(params: {
   ].join("\n");
 }
 
-export function createChallenge(address: string, domain: string, uri?: string) {
-  pruneExpired();
+export async function createChallenge(address: string, domain: string, uri?: string) {
+  await pruneExpired();
   if (!SOLANA_ADDRESS_RE.test(address)) {
     throw new Error("Invalid Solana address");
   }
-  // cheap sanity check — invalid keys throw
   new PublicKey(address);
 
-  if (countNoncesForAddress(address) >= MAX_NONCES_PER_ADDRESS) {
+  const count = await pool.query(
+    "SELECT COUNT(*)::int AS n FROM siws_challenges WHERE address = $1 AND expires_at > $2",
+    [address, Date.now()],
+  );
+  if ((count.rows[0]?.n || 0) >= MAX_NONCES_PER_ADDRESS) {
     throw new Error("Too many outstanding challenges. Wait and retry.");
   }
 
@@ -108,13 +101,11 @@ export function createChallenge(address: string, domain: string, uri?: string) {
     uri,
   });
 
-  nonceStore.set(`${address}:${nonce}`, {
-    nonce,
-    address,
-    message,
-    issuedAt: issuedAtMs,
-    expiresAt: expiresAtMs,
-  });
+  await pool.query(
+    `INSERT INTO siws_challenges (challenge_key, address, nonce, message, issued_at, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [`${address}:${nonce}`, address, nonce, message, issuedAtMs, expiresAtMs],
+  );
 
   return { nonce, message, issuedAt, expirationTime, domain };
 }
@@ -124,29 +115,28 @@ function decodeSignature(signature: string): Uint8Array {
   try {
     return bs58.decode(trimmed);
   } catch {
-    // some wallets return base64
     return Uint8Array.from(Buffer.from(trimmed, "base64"));
   }
 }
 
-export function verifyChallenge(params: {
+export async function verifyChallenge(params: {
   address: string;
   nonce: string;
   signature: string;
   message?: string;
-}): { ok: true } | { ok: false; error: string } {
-  pruneExpired();
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  await pruneExpired();
   const key = `${params.address}:${params.nonce}`;
-  const rec = nonceStore.get(key);
+  const found = await pool.query(
+    "DELETE FROM siws_challenges WHERE challenge_key = $1 RETURNING message, expires_at",
+    [key],
+  );
+  const rec = found.rows[0];
   if (!rec) return { ok: false, error: "Unknown or expired challenge" };
-  if (rec.expiresAt <= Date.now()) {
-    nonceStore.delete(key);
+  if (Number(rec.expires_at) <= Date.now()) {
     return { ok: false, error: "Challenge expired" };
   }
-
-  // Bind the exact server-issued message; reject client-rewritten text.
-  const message = rec.message;
-  if (params.message && params.message !== message) {
+  if (params.message && params.message !== rec.message) {
     return { ok: false, error: "Message mismatch" };
   }
 
@@ -167,10 +157,11 @@ export function verifyChallenge(params: {
     return { ok: false, error: "Invalid signature length" };
   }
 
-  const messageBytes = new TextEncoder().encode(message);
-  const valid = nacl.sign.detached.verify(messageBytes, sigBytes, pubkeyBytes);
-  // one-time nonce regardless of outcome after first verify attempt on a found record
-  nonceStore.delete(key);
+  const valid = nacl.sign.detached.verify(
+    new TextEncoder().encode(rec.message),
+    sigBytes,
+    pubkeyBytes,
+  );
   if (!valid) return { ok: false, error: "Signature verification failed" };
   return { ok: true };
 }
