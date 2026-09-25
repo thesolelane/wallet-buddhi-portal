@@ -101,6 +101,10 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
   const mergedOwner = `guest:${mergedGuestId}`;
   const legacyGuestId = crypto.randomBytes(16).toString("hex");
   const legacyOwner = `guest:${legacyGuestId}`;
+  const racingGuestId = crypto.randomBytes(16).toString("hex");
+  const racingOwner = `guest:${racingGuestId}`;
+  const racingLegacyGuestId = crypto.randomBytes(16).toString("hex");
+  const racingLegacyOwner = `guest:${racingLegacyGuestId}`;
   const uiGuestId = crypto.randomBytes(16).toString("hex");
   const uiOwner = `guest:${uiGuestId}`;
   const uiLegacyId = crypto.randomBytes(16).toString("hex");
@@ -267,6 +271,38 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert.deepEqual(await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, legacyOwner)), []);
     });
 
+    await t.test("simultaneous legacy merge and canonical save stay within the guest cap", async () => {
+      const [canonicalMint, olderMint, newerMint, savedMint] = Array.from(
+        { length: 4 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58(),
+      );
+      await db.insert(watchedTokens).values([
+        { ownerPubkey: racingOwner, mint: canonicalMint, addedAt: new Date("2024-01-01T00:00:00Z") },
+        { ownerPubkey: racingLegacyOwner, mint: olderMint, addedAt: new Date("2024-02-01T00:00:00Z") },
+        { ownerPubkey: racingLegacyOwner, mint: newerMint, addedAt: new Date("2024-03-01T00:00:00Z") },
+      ]);
+      const headers = { "x-wb-vid": racingGuestId };
+      const [merge, save] = await Promise.all([
+        fetch(`${base}/api/tokens/watched-guest`, {
+          headers: { ...headers, cookie: `wb.vid=${racingLegacyGuestId}` },
+        }),
+        fetch(`${base}/api/tokens/watched-guest`, {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ mint: savedMint }),
+        }),
+      ]);
+      assert.equal(merge.status, 200, await merge.clone().text());
+      assert([201, 409].includes(save.status), `Unexpected save status ${save.status}: ${await save.text()}`);
+
+      const canonicalRows = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, racingOwner));
+      assert.equal(canonicalRows.length, 2);
+      assert.deepEqual(
+        new Set(canonicalRows.map((row) => row.mint)),
+        new Set([canonicalMint, save.status === 201 ? savedMint : newerMint]),
+      );
+      assert.deepEqual(await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, racingLegacyOwner)), []);
+    });
+
     await t.test("guest watchlist shows a trimmed merge notice until dismissed", async () => {
       await db.insert(watchedTokens).values([
         { ownerPubkey: uiOwner, mint: mints[0] },
@@ -415,6 +451,8 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, mergedOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, legacyOwner));
+    await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, racingOwner));
+    await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, racingLegacyOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, uiOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, uiLegacyOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, address));
