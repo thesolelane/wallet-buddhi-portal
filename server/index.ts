@@ -7,6 +7,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startWatchlistMonitor } from "./watchlist-monitor";
 import { hydrateBadActorRegistry } from "./bad-actor-registry";
+import { hydrateLeaderboards } from "./leaderboard-store";
 import { pool } from "./db";
 
 const app = express();
@@ -72,6 +73,7 @@ app.use((req, res, next) => {
 
 (async () => {
   await hydrateBadActorRegistry();
+  await hydrateLeaderboards();
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
