@@ -63,22 +63,6 @@ export function WatchlistPanel() {
     }
   }
 
-  async function loadWalletsQuiet() {
-    try {
-      const me = await fetch("/api/auth/me", { credentials: "include" });
-      if (!me.ok) {
-        setReady(false);
-        return;
-      }
-      const res = await apiRequest("GET", "/api/wallets");
-      const data = await res.json();
-      setWallets(data.wallets || []);
-      setReady(true);
-    } catch {
-      setReady(false);
-    }
-  }
-
   async function refreshList() {
     await withSession(async () => {
       const res = await apiRequest("GET", "/api/wallets");
@@ -172,7 +156,34 @@ export function WatchlistPanel() {
   }
 
   useEffect(() => {
-    void loadWalletsQuiet();
+    let active = true;
+    setReady(false);
+    setWallets([]);
+    setSelectedId(null);
+    setTokens([]);
+    setAlerts([]);
+    setHoldings([]);
+    setHoldingsNote("");
+
+    if (connected && address) {
+      void (async () => {
+        try {
+          const me = await fetch("/api/auth/me", { credentials: "include" });
+          if (!me.ok || (await me.json()).address !== address) return;
+          const res = await apiRequest("GET", "/api/wallets");
+          const data = await res.json();
+          if (active) {
+            setWallets(data.wallets || []);
+            setReady(true);
+          }
+        } catch {
+          // The user can sign in when they next use the watchlist.
+        }
+      })();
+    }
+    return () => {
+      active = false;
+    };
   }, [connected, address]);
 
   if (!connected) {

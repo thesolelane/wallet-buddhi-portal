@@ -76,6 +76,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const disconnect = async () => {
     try {
+      const logoutResponse = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!logoutResponse.ok) {
+        throw new Error("Could not end the wallet sign-in session");
+      }
       await walletDisconnect();
       setTier("basic");
       setOnChainTier(null);
@@ -86,6 +93,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       });
     } catch (error) {
       console.error("Error disconnecting wallet:", error);
+      toast({
+        title: "Could not disconnect wallet",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
