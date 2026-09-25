@@ -39,13 +39,50 @@ function readCookie(req: Request, name: string) {
   return "";
 }
 
-function guestOwner(req: Request, res: Response) {
+async function guestOwner(req: Request, res: Response) {
   const headerVid = String(req.headers["x-wb-vid"] || "");
   const cookieVid = readCookie(req, GUEST_COOKIE);
   let vid = VID_RE.test(headerVid) ? headerVid : cookieVid;
   if (!VID_RE.test(vid)) {
     vid = crypto.randomBytes(16).toString("hex");
   }
+  vid = vid.toLowerCase();
+
+  // Older versions could save watches under the cookie ID before the client
+  // supplied its stable local ID. Reconcile both identities so those rows do
+  // not disappear after a refresh or an app update.
+  if (
+    VID_RE.test(headerVid) &&
+    VID_RE.test(cookieVid) &&
+    headerVid.toLowerCase() !== cookieVid.toLowerCase()
+  ) {
+    const canonicalOwner = `guest:${headerVid.toLowerCase()}`;
+    const legacyOwner = `guest:${cookieVid.toLowerCase()}`;
+    await db.transaction(async (tx) => {
+      const legacyTokens = await tx
+        .select()
+        .from(watchedTokens)
+        .where(eq(watchedTokens.ownerPubkey, legacyOwner));
+
+      for (const token of legacyTokens) {
+        await tx
+          .insert(watchedTokens)
+          .values({
+            ownerPubkey: canonicalOwner,
+            mint: token.mint,
+            symbol: token.symbol,
+            name: token.name,
+            addedAt: token.addedAt,
+          })
+          .onConflictDoNothing();
+      }
+
+      if (legacyTokens.length > 0) {
+        await tx.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, legacyOwner));
+      }
+    });
+  }
+
   res.cookie(GUEST_COOKIE, vid, {
     httpOnly: true,
     sameSite: "lax",
@@ -53,13 +90,13 @@ function guestOwner(req: Request, res: Response) {
     maxAge: 365 * 24 * 60 * 60 * 1000,
     path: "/",
   });
-  return `guest:${vid.toLowerCase()}`;
+  return `guest:${vid}`;
 }
 
 export function registerWatchedTokenRoutes(app: Express) {
   app.get("/api/tokens/watched-guest", async (req, res) => {
     try {
-      const owner = guestOwner(req, res);
+      const owner = await guestOwner(req, res);
       const tokens = await db
         .select()
         .from(watchedTokens)
@@ -74,7 +111,7 @@ export function registerWatchedTokenRoutes(app: Express) {
 
   app.delete("/api/tokens/watched-guest", async (req, res) => {
     try {
-      const owner = guestOwner(req, res);
+      const owner = await guestOwner(req, res);
       const rows = await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner)).returning();
       return res.json({ removed: rows.length });
     } catch (error) {
@@ -86,7 +123,7 @@ export function registerWatchedTokenRoutes(app: Express) {
   app.post("/api/tokens/watched-guest", async (req, res) => {
     try {
       const data = addSchema.parse(req.body);
-      const owner = guestOwner(req, res);
+      const owner = await guestOwner(req, res);
       const existingRows = await db
         .select()
         .from(watchedTokens)
@@ -134,7 +171,7 @@ export function registerWatchedTokenRoutes(app: Express) {
       if (!SOLANA_ADDRESS_RE.test(mint)) {
         return res.status(400).json({ error: "Invalid mint" });
       }
-      const owner = guestOwner(req, res);
+      const owner = await guestOwner(req, res);
       const rows = await db
         .delete(watchedTokens)
         .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, mint)))
