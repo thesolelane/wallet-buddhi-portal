@@ -95,6 +95,8 @@ class BrowserPage {
 test("guest navigation, token cap, and free signed-wallet access", { timeout: 120000 }, async (t) => {
   const guestId = crypto.randomBytes(16).toString("hex");
   const owner = `guest:${guestId}`;
+  const concurrentGuestId = crypto.randomBytes(16).toString("hex");
+  const concurrentOwner = `guest:${concurrentGuestId}`;
   const signer = nacl.sign.keyPair();
   const address = new PublicKey(signer.publicKey).toBase58();
   const watchedAddress = new PublicKey(nacl.sign.keyPair().publicKey).toBase58();
@@ -175,6 +177,26 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert.deepEqual(new Set(data.tokens.map((token: { mint: string }) => token.mint)), new Set(mints.slice(0, 2)));
     });
 
+    await t.test("simultaneous guest saves and replacements respect the two-token cap", async () => {
+      const headers = { "x-wb-vid": concurrentGuestId, "content-type": "application/json" };
+      const burstMints = Array.from({ length: 8 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58());
+      const save = (mint: string, replaceMint?: string) => fetch(`${base}/api/tokens/watched-guest`, {
+        method: "POST", headers, body: JSON.stringify({ mint, replaceMint }),
+      });
+      const responses = await Promise.all(burstMints.map((mint) => save(mint)));
+      assert.equal(responses.filter((response) => response.status === 201).length, 2);
+      assert.equal(responses.filter((response) => response.status === 409).length, 6);
+      const firstRows = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
+      assert.equal(firstRows.length, 2);
+
+      const replacements = await Promise.all(burstMints.slice(0, 4).map((_, index) =>
+        save(new PublicKey(nacl.sign.keyPair().publicKey).toBase58(), firstRows[index % 2].mint)));
+      assert.equal(replacements.filter((response) => response.status === 201).length, 2);
+      assert.equal(replacements.filter((response) => response.status === 409).length, 2);
+      const finalRows = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
+      assert.equal(finalRows.length, 2);
+    });
+
     await t.test("unsigned guest cannot add a watched wallet; free signed-in wallet can add and remove one", async () => {
       const unauthenticated = await fetch(`${base}/api/wallets`, {
         method: "POST", headers: { "content-type": "application/json" },
@@ -222,6 +244,7 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
     if (server) await stop(server);
     if (chromeDir) await rm(chromeDir, { recursive: true, force: true });
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
+    await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
     await db.delete(watchedWallets).where(eq(watchedWallets.ownerPubkey, address));
     await pool.end();
   }

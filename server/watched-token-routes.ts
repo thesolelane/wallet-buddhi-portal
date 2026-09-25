@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import crypto from "crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
 import {
@@ -124,38 +124,45 @@ export function registerWatchedTokenRoutes(app: Express) {
     try {
       const data = addSchema.parse(req.body);
       const owner = await guestOwner(req, res);
-      const existingRows = await db
-        .select()
-        .from(watchedTokens)
-        .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, data.mint)))
-        .limit(1);
-      if (existingRows[0]) return res.json(existingRows[0]);
-      let all = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
-      if (all.length >= GUEST_CAP) {
-        if (data.replaceMint) {
-          await db
+      const result = await db.transaction(async (tx) => {
+        // Lock the guest identity, not its rows: a new guest has no rows to lock.
+        // The transaction-scoped lock also works across server instances.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${owner}, 0))`);
+        const existingRows = await tx
+          .select()
+          .from(watchedTokens)
+          .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, data.mint)))
+          .limit(1);
+        if (existingRows[0]) return { status: 200, body: existingRows[0] };
+        let all = await tx.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
+        if (all.length >= GUEST_CAP && data.replaceMint) {
+          await tx
             .delete(watchedTokens)
             .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, data.replaceMint)));
-          all = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
+          all = await tx.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
         }
-      }
-      if (all.length >= GUEST_CAP) {
-        return res.status(409).json({
-          error: "Free plan allows 2 watched tokens. Choose one to replace.",
-          cap: GUEST_CAP,
-          tokens: all,
-        });
-      }
-      const rows = await db
-        .insert(watchedTokens)
-        .values({
-          ownerPubkey: owner,
-          mint: data.mint,
-          symbol: data.symbol ?? null,
-          name: data.name ?? null,
-        })
-        .returning();
-      return res.status(201).json(rows[0]);
+        if (all.length >= GUEST_CAP) {
+          return {
+            status: 409,
+            body: {
+              error: "Free plan allows 2 watched tokens. Choose one to replace.",
+              cap: GUEST_CAP,
+              tokens: all,
+            },
+          };
+        }
+        const rows = await tx
+          .insert(watchedTokens)
+          .values({
+            ownerPubkey: owner,
+            mint: data.mint,
+            symbol: data.symbol ?? null,
+            name: data.name ?? null,
+          })
+          .returning();
+        return { status: 201, body: rows[0] };
+      });
+      return res.status(result.status).json(result.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid request data" });
