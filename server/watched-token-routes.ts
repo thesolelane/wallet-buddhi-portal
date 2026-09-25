@@ -22,6 +22,7 @@ const addSchema = z.object({
 
 const GUEST_CAP = 2;
 const GUEST_COOKIE = "wb.vid";
+const VID_RE = /^[a-f0-9]{32}$/i;
 
 function capForTier(tier: string | undefined) {
   if (!tier) return TOKEN_WATCH_CAPS.basic;
@@ -38,20 +39,20 @@ function readCookie(req: Request, name: string) {
 }
 
 function guestOwner(req: Request, res: Response) {
-  let vid = readCookie(req, GUEST_COOKIE);
-  if (!vid || vid.length < 16) {
+  const headerVid = String(req.headers["x-wb-vid"] || "");
+  const cookieVid = readCookie(req, GUEST_COOKIE);
+  let vid = VID_RE.test(headerVid) ? headerVid : cookieVid;
+  if (!VID_RE.test(vid)) {
     vid = crypto.randomBytes(16).toString("hex");
-    res.cookie(GUEST_COOKIE, vid, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 365 * 24 * 60 * 60 * 1000,
-      path: "/",
-    });
   }
-  const session = req.session as Request["session"] & { guestId?: string };
-  session.guestId = vid;
-  return `guest:${vid}`;
+  res.cookie(GUEST_COOKIE, vid, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    maxAge: 365 * 24 * 60 * 60 * 1000,
+    path: "/",
+  });
+  return `guest:${vid.toLowerCase()}`;
 }
 
 export function registerWatchedTokenRoutes(app: Express) {
@@ -83,8 +84,9 @@ export function registerWatchedTokenRoutes(app: Express) {
       const all = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
       if (all.length >= GUEST_CAP) {
         return res.status(403).json({
-          error: "Free plan allows 2 watched tokens. Connect a wallet and upgrade for more.",
+          error: "Free plan allows 2 watched tokens. Remove one from Watchlist first.",
           cap: GUEST_CAP,
+          tokens: all,
         });
       }
       const rows = await db
