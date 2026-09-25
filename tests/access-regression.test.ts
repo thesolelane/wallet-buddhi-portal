@@ -97,6 +97,10 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
   const owner = `guest:${guestId}`;
   const concurrentGuestId = crypto.randomBytes(16).toString("hex");
   const concurrentOwner = `guest:${concurrentGuestId}`;
+  const mergedGuestId = crypto.randomBytes(16).toString("hex");
+  const mergedOwner = `guest:${mergedGuestId}`;
+  const legacyGuestId = crypto.randomBytes(16).toString("hex");
+  const legacyOwner = `guest:${legacyGuestId}`;
   const signer = nacl.sign.keyPair();
   const address = new PublicKey(signer.publicKey).toBase58();
   const watchedAddress = new PublicKey(nacl.sign.keyPair().publicKey).toBase58();
@@ -177,6 +181,28 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert.deepEqual(new Set(data.tokens.map((token: { mint: string }) => token.mint)), new Set(mints.slice(0, 2)));
     });
 
+    await t.test("merging an old cookie ID keeps canonical watches and only the newest available legacy watch", async () => {
+      const [canonicalMint, olderMint, newerMint] = Array.from(
+        { length: 3 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58(),
+      );
+      await db.insert(watchedTokens).values([
+        { ownerPubkey: mergedOwner, mint: canonicalMint, addedAt: new Date("2024-01-01T00:00:00Z") },
+        { ownerPubkey: legacyOwner, mint: olderMint, addedAt: new Date("2024-02-01T00:00:00Z") },
+        { ownerPubkey: legacyOwner, mint: newerMint, addedAt: new Date("2024-03-01T00:00:00Z") },
+      ]);
+      const headers = { "x-wb-vid": mergedGuestId, cookie: `wb.vid=${legacyGuestId}` };
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const response = await fetch(`${base}/api/tokens/watched-guest`, { headers });
+        assert.equal(response.status, 200, await response.clone().text());
+        const data = await response.json();
+        assert.equal(data.count, 2);
+        assert.deepEqual(new Set(data.tokens.map((token: { mint: string }) => token.mint)),
+          new Set([canonicalMint, newerMint]));
+      }
+      assert.equal((await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, mergedOwner))).length, 2);
+      assert.deepEqual(await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, legacyOwner)), []);
+    });
+
     await t.test("simultaneous guest saves and replacements respect the two-token cap", async () => {
       const headers = { "x-wb-vid": concurrentGuestId, "content-type": "application/json" };
       const burstMints = Array.from({ length: 8 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58());
@@ -245,6 +271,8 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
     if (chromeDir) await rm(chromeDir, { recursive: true, force: true });
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, owner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
+    await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, mergedOwner));
+    await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, legacyOwner));
     await db.delete(watchedWallets).where(eq(watchedWallets.ownerPubkey, address));
     await pool.end();
   }

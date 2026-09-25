@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import crypto from "crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./db";
 import { storage } from "./storage";
 import {
@@ -59,12 +59,32 @@ async function guestOwner(req: Request, res: Response) {
     const canonicalOwner = `guest:${headerVid.toLowerCase()}`;
     const legacyOwner = `guest:${cookieVid.toLowerCase()}`;
     await db.transaction(async (tx) => {
+      // Serialize reconciliation with saves to either guest identity. Lock in
+      // a consistent order so opposite-direction merges cannot deadlock.
+      for (const owner of [canonicalOwner, legacyOwner].sort()) {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${owner}, 0))`);
+      }
+      const canonicalTokens = await tx
+        .select()
+        .from(watchedTokens)
+        .where(eq(watchedTokens.ownerPubkey, canonicalOwner))
+        .orderBy(desc(watchedTokens.addedAt), asc(watchedTokens.mint));
       const legacyTokens = await tx
         .select()
         .from(watchedTokens)
-        .where(eq(watchedTokens.ownerPubkey, legacyOwner));
+        .where(eq(watchedTokens.ownerPubkey, legacyOwner))
+        .orderBy(desc(watchedTokens.addedAt), asc(watchedTokens.mint));
 
+      // Retain canonical watches first (newest first), then fill remaining
+      // slots with the newest distinct legacy watches. Mint breaks date ties.
+      const retainedCanonical = canonicalTokens.slice(0, GUEST_CAP);
+      const excessCanonical = canonicalTokens.slice(GUEST_CAP);
+      if (excessCanonical.length) {
+        await tx.delete(watchedTokens).where(inArray(watchedTokens.id, excessCanonical.map((token) => token.id)));
+      }
+      const retainedMints = new Set(retainedCanonical.map((token) => token.mint));
       for (const token of legacyTokens) {
+        if (retainedMints.has(token.mint) || retainedMints.size >= GUEST_CAP) continue;
         await tx
           .insert(watchedTokens)
           .values({
@@ -75,6 +95,7 @@ async function guestOwner(req: Request, res: Response) {
             addedAt: token.addedAt,
           })
           .onConflictDoNothing();
+        retainedMints.add(token.mint);
       }
 
       if (legacyTokens.length > 0) {
