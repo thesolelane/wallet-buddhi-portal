@@ -1,19 +1,20 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
-import MemoryStore from "memorystore";
+import ConnectPgSimple from "connect-pg-simple";
 import crypto from "crypto";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startWatchlistMonitor } from "./watchlist-monitor";
 import { hydrateBadActorRegistry } from "./bad-actor-registry";
+import { pool } from "./db";
 
 const app = express();
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "200kb" }));
 app.use(express.urlencoded({ extended: false, limit: "200kb" }));
 
-const SessionStore = MemoryStore(session);
+const PgSession = ConnectPgSimple(session);
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret && process.env.NODE_ENV === "production") {
   throw new Error("SESSION_SECRET must be set in production");
@@ -32,8 +33,10 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       maxAge: 12 * 60 * 60 * 1000,
     },
-    store: new SessionStore({
-      checkPeriod: 60 * 60 * 1000,
+    store: new PgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
     }),
   }),
 );
