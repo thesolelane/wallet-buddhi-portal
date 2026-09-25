@@ -136,7 +136,7 @@ export type WatchedToken = typeof watchedTokens.$inferSelect;
 export const TOKEN_WATCH_CAPS: Record<string, number> = {
   basic: 2,
   pro: 15,
-  pro_plus: 50,
+  "pro+": 50,
 };
 
 export const purchasedTokens = pgTable("purchased_tokens", {
