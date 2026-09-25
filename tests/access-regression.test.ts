@@ -14,7 +14,7 @@ import { PublicKey } from "@solana/web3.js";
 import { eq } from "drizzle-orm";
 import WebSocket from "ws";
 import { db, pool } from "../server/db";
-import { watchedTokens, watchedWallets } from "../shared/schema";
+import { TOKEN_WATCH_CAPS, walletAccounts, watchedTokens, watchedWallets } from "../shared/schema";
 
 // These are integration tests against the development database; never point them at production.
 assert.notEqual(process.env.NODE_ENV, "production", "Access tests must not run against production");
@@ -112,6 +112,7 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
   let chrome: ChildProcess | undefined;
   let browser: BrowserPage | undefined;
   let chromeDir: string | undefined;
+  let signedHeaders: { cookie: string; "content-type": string } | undefined;
   try {
     server = spawn("node", ["--import", "tsx", "server/index.ts"], {
       env: { ...process.env, NODE_ENV: "development", PORT: String(port), ENABLE_WATCHLIST_MONITOR: "0" },
@@ -291,6 +292,7 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert(sessionCookie?.startsWith("wb.sid="), "Signed-in session cookie missing");
 
       const headers = { cookie: sessionCookie, "content-type": "application/json" };
+      signedHeaders = headers;
       const tierResponse = await fetch(`${base}/api/tokens/watched`, { headers });
       assert.equal(tierResponse.status, 200);
       assert.equal((await tierResponse.json()).tier, "basic");
@@ -308,6 +310,33 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert.equal((await removed.json()).removed, true);
       assert.deepEqual(await db.select().from(watchedWallets).where(eq(watchedWallets.ownerPubkey, address)), []);
     });
+
+    await t.test("overlapping signed-wallet saves stop at the basic and pro limits", async () => {
+      assert(signedHeaders, "Signed-in session missing");
+      const save = (mint: string) => fetch(`${base}/api/tokens/watched`, {
+        method: "POST", headers: signedHeaders, body: JSON.stringify({ mint }),
+      });
+      const burst = (size: number) =>
+        Promise.all(Array.from({ length: size }, () => save(new PublicKey(nacl.sign.keyPair().publicKey).toBase58())));
+
+      const basicResponses = await burst(8);
+      assert.equal(basicResponses.filter((response) => response.status === 201).length, TOKEN_WATCH_CAPS.basic);
+      assert.equal(basicResponses.filter((response) => response.status === 403).length, 8 - TOKEN_WATCH_CAPS.basic);
+      assert.equal(
+        (await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, address))).length,
+        TOKEN_WATCH_CAPS.basic,
+      );
+
+      await db.insert(walletAccounts).values({ walletAddress: address, tier: "pro" })
+        .onConflictDoUpdate({ target: walletAccounts.walletAddress, set: { tier: "pro" } });
+      const proResponses = await burst(20);
+      assert.equal(proResponses.filter((response) => response.status === 201).length, TOKEN_WATCH_CAPS.pro - TOKEN_WATCH_CAPS.basic);
+      assert.equal(proResponses.filter((response) => response.status === 403).length, 20 - (TOKEN_WATCH_CAPS.pro - TOKEN_WATCH_CAPS.basic));
+      assert.equal(
+        (await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, address))).length,
+        TOKEN_WATCH_CAPS.pro,
+      );
+    });
   } finally {
     browser?.close();
     if (chrome) await stop(chrome);
@@ -317,7 +346,9 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, mergedOwner));
     await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, legacyOwner));
+    await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, address));
     await db.delete(watchedWallets).where(eq(watchedWallets.ownerPubkey, address));
+    await db.delete(walletAccounts).where(eq(walletAccounts.walletAddress, address));
     await pool.end();
   }
 });

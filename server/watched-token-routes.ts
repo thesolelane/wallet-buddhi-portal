@@ -6,6 +6,7 @@ import { db } from "./db";
 import { storage } from "./storage";
 import {
   TOKEN_WATCH_CAPS,
+  walletAccounts,
   watchedTokens,
 } from "@shared/schema";
 import {
@@ -232,36 +233,44 @@ export function registerWatchedTokenRoutes(app: Express) {
     try {
       const data = addSchema.parse(req.body);
       const owner = sessionWallet(req)!;
-      const existingRows = await db
-        .select()
-        .from(watchedTokens)
-        .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, data.mint)))
-        .limit(1);
-      if (existingRows[0]) {
-        return res.json(existingRows[0]);
-      }
-      const account = await storage.getWalletAccount(owner);
-      const cap = capForTier(account?.tier);
-      const all = await db
-        .select()
-        .from(watchedTokens)
-        .where(eq(watchedTokens.ownerPubkey, owner));
-      if (all.length >= cap) {
-        return res.status(403).json({
-          error: `Watch limit reached (${cap}). Upgrade for more tokens.`,
-          cap,
-        });
-      }
-      const rows = await db
-        .insert(watchedTokens)
-        .values({
-          ownerPubkey: owner,
-          mint: data.mint,
-          symbol: data.symbol ?? null,
-          name: data.name ?? null,
-        })
-        .returning();
-      return res.status(201).json(rows[0]);
+      const result = await db.transaction(async (tx) => {
+        // Serialize the whole check and insert for this owner, including when
+        // the wallet has no watched rows yet. This also spans server instances.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${owner}, 0))`);
+        const existingRows = await tx
+          .select()
+          .from(watchedTokens)
+          .where(and(eq(watchedTokens.ownerPubkey, owner), eq(watchedTokens.mint, data.mint)))
+          .limit(1);
+        if (existingRows[0]) return { status: 200, body: existingRows[0] };
+        const account = await tx
+          .select()
+          .from(walletAccounts)
+          .where(eq(walletAccounts.walletAddress, owner))
+          .limit(1);
+        const cap = capForTier(account[0]?.tier);
+        const all = await tx
+          .select()
+          .from(watchedTokens)
+          .where(eq(watchedTokens.ownerPubkey, owner));
+        if (all.length >= cap) {
+          return {
+            status: 403,
+            body: { error: `Watch limit reached (${cap}). Upgrade for more tokens.`, cap },
+          };
+        }
+        const rows = await tx
+          .insert(watchedTokens)
+          .values({
+            ownerPubkey: owner,
+            mint: data.mint,
+            symbol: data.symbol ?? null,
+            name: data.name ?? null,
+          })
+          .returning();
+        return { status: 201, body: rows[0] };
+      });
+      return res.status(result.status).json(result.body);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid request data" });
