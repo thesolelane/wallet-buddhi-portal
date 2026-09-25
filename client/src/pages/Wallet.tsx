@@ -6,7 +6,7 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp, Target, AlertTriangle, GitBranch, Eye, EyeOff, Sparkles, Loader2 } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Activity, Copy, ExternalLink, Wallet as WalletIcon, TrendingUp, Target, AlertTriangle, GitBranch, Sparkles, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { WatchWalletButton } from "@/components/WatchWalletButton";
@@ -387,33 +387,6 @@ function WalletAnalystCard({ wallet }: { wallet: string }) {
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function WalletWatchToggle({ address }: { address: string }) {
-  const [watched, setWatched] = useState(false);
-  useEffect(() => {
-    setWatched(isWalletWatched(address));
-    const refresh = () => setWatched(isWalletWatched(address));
-    window.addEventListener("wbuddhi:watchlist-changed", refresh);
-    return () => window.removeEventListener("wbuddhi:watchlist-changed", refresh);
-  }, [address]);
-  return (
-    <Button
-      size="sm"
-      variant={watched ? "default" : "outline"}
-      onClick={() => (watched ? removeWalletFromWatchlist(address) : addWalletToWatchlist(address))}
-    >
-      {watched ? (
-        <>
-          <EyeOff className="w-4 h-4" /> Unwatch
-        </>
-      ) : (
-        <>
-          <Eye className="w-4 h-4" /> Watch
-        </>
-      )}
-    </Button>
   );
 }
 
