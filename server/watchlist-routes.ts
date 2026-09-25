@@ -113,11 +113,11 @@ export function registerWatchlistRoutes(app: Express) {
     }
   });
 
-  app.post("/api/auth/challenge", (req, res) => {
+  app.post("/api/auth/challenge", async (req, res) => {
     try {
       const { address } = challengeSchema.parse(req.body);
       const domain = getAuthDomain(req);
-      const challenge = createChallenge(address, domain);
+      const challenge = await createChallenge(address, domain);
       return res.json(challenge);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -129,10 +129,10 @@ export function registerWatchlistRoutes(app: Express) {
     }
   });
 
-  app.post("/api/auth/verify", (req, res) => {
+  app.post("/api/auth/verify", async (req, res) => {
     try {
       const data = verifySchema.parse(req.body);
-      const result = verifyChallenge(data);
+      const result = await verifyChallenge(data);
       if (!result.ok) {
         return res.status(401).json({ error: result.error });
       }
