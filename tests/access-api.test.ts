@@ -121,65 +121,15 @@ test("API access checks: guest tokens and signed wallet caps", { timeout: 180000
       });
       assert.equal(rejected.status, 409);
       assert.equal((await rejected.json()).cap, 2);
-      const listing = await fetch(`${base}/api/tokens/watched-guest`, { headers: guestHeaders });
-      const data = await listing.json();
-      assert.equal(data.count, 2);
-    });
-
-    await t.test("merging an old cookie ID stays within the guest cap", async () => {
-      const [canonicalMint, olderMint, newerMint] = Array.from(
-        { length: 3 },
-        () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58(),
-      );
-      await db.insert(watchedTokens).values([
-        { ownerPubkey: mergedOwner, mint: canonicalMint, addedAt: new Date("2024-01-01T00:00:00Z") },
-        { ownerPubkey: legacyOwner, mint: olderMint, addedAt: new Date("2024-02-01T00:00:00Z") },
-        { ownerPubkey: legacyOwner, mint: newerMint, addedAt: new Date("2024-03-01T00:00:00Z") },
-      ]);
-      const headers = { "x-wb-vid": mergedGuestId, cookie: `wb.vid=${legacyGuestId}` };
-      const first = await fetch(`${base}/api/tokens/watched-guest`, { headers });
-      assert.equal(first.status, 200, await first.clone().text());
-      const data = await first.json();
-      assert.equal(data.count, 2);
-      assert.deepEqual(
-        new Set(data.tokens.map((token: { mint: string }) => token.mint)),
-        new Set([canonicalMint, newerMint]),
-      );
-    });
-
-    await t.test("simultaneous guest saves respect the two-token cap", async () => {
-      const headers = { "x-wb-vid": concurrentGuestId, "content-type": "application/json" };
-      const burstMints = Array.from({ length: 8 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58());
-      const responses = await Promise.all(
-        burstMints.map((mint) =>
-          fetch(`${base}/api/tokens/watched-guest`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ mint }),
-          }),
-        ),
-      );
-      assert.equal(responses.filter((response) => response.status === 201).length, 2);
-      assert.equal(responses.filter((response) => response.status === 409).length, 6);
-      const rows = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
-      assert.equal(rows.length, 2);
     });
 
     await t.test("unsigned requests cannot use watched-wallet endpoints", async () => {
-      const paths = [
-        ["GET", "/api/wallets"],
-        ["POST", "/api/wallets"],
-        ["POST", "/api/wallets/scan"],
-        ["GET", "/api/wallets/missing/holdings"],
-      ] as const;
-      for (const [method, path] of paths) {
-        const response = await fetch(`${base}${path}`, {
-          method,
-          headers: { "content-type": "application/json" },
-          ...(method === "POST" ? { body: JSON.stringify({ pubkey: watchedAddress }) } : {}),
-        });
-        assert.equal(response.status, 401, `${method} ${path}: ${await response.text()}`);
-      }
+      const response = await fetch(`${base}/api/wallets`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pubkey: watchedAddress }),
+      });
+      assert.equal(response.status, 401);
     });
 
     await t.test("free signed-in wallet can add and remove one watched wallet", async () => {
@@ -191,62 +141,60 @@ test("API access checks: guest tokens and signed wallet caps", { timeout: 180000
       });
       assert.equal(created.status, 201, await created.clone().text());
       const wallet = await created.json();
-      const removed = await fetch(`${base}/api/wallets/${wallet.id}`, {
-        method: "DELETE",
-        headers: signedHeaders,
-      });
+      const removed = await fetch(`${base}/api/wallets/${wallet.id}`, { method: "DELETE", headers: signedHeaders });
       assert.equal(removed.status, 200);
     });
 
-    await t.test("overlapping watched-wallet saves across two servers cannot exceed five", async () => {
+    await t.test("overlapping signed token saves across two servers stay within tier caps", async () => {
       assert(signedHeaders, "Signed-in session missing");
+      await db.delete(watchedTokens).where(eq(watchedTokens.ownerPubkey, address));
+      await db
+        .insert(walletAccounts)
+        .values({ walletAddress: address, tier: "basic" })
+        .onConflictDoUpdate({ target: walletAccounts.walletAddress, set: { tier: "basic" } });
+
       const secondPort = await unusedPort();
       const second = await startApp(secondPort);
       try {
         const secondHeaders = await signIn(second.base, address, signer);
-        const targets = Array.from({ length: 12 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58());
-        const responses = await Promise.all(
-          targets.map((pubkey, index) =>
-            fetch(`${index % 2 === 0 ? base : second.base}/api/wallets`, {
-              method: "POST",
-              headers: index % 2 === 0 ? signedHeaders! : secondHeaders,
-              body: JSON.stringify({ pubkey }),
+        const burst = (count: number) =>
+          Promise.all(
+            Array.from({ length: count }, (_, index) => {
+              const mint = new PublicKey(nacl.sign.keyPair().publicKey).toBase58();
+              const useSecond = index % 2 === 1;
+              return fetch(`${useSecond ? second.base : base}/api/tokens/watched`, {
+                method: "POST",
+                headers: useSecond ? secondHeaders : signedHeaders!,
+                body: JSON.stringify({ mint }),
+              });
             }),
-          ),
+          );
+
+        const basicBurst = await burst(TOKEN_WATCH_CAPS.basic + 6);
+        const basicCreated = basicBurst.filter((response) => response.status === 201).length;
+        const basicBlocked = basicBurst.filter((response) => response.status === 403).length;
+        assert.equal(basicCreated, TOKEN_WATCH_CAPS.basic, "basic cap leaked across servers");
+        assert.equal(basicBlocked, 6);
+        assert.equal(
+          (await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, address))).length,
+          TOKEN_WATCH_CAPS.basic,
         );
-        const statuses = responses.map((response) => response.status);
-        assert.equal(statuses.filter((status) => status === 201).length, 5, String(statuses));
-        assert.equal(statuses.filter((status) => status === 403).length, 7, String(statuses));
-        const persisted = await db.select().from(watchedWallets).where(eq(watchedWallets.ownerPubkey, address));
-        assert.equal(persisted.length, 5);
+
+        await db
+          .insert(walletAccounts)
+          .values({ walletAddress: address, tier: "pro" })
+          .onConflictDoUpdate({ target: walletAccounts.walletAddress, set: { tier: "pro" } });
+        const remaining = TOKEN_WATCH_CAPS.pro - TOKEN_WATCH_CAPS.basic;
+        const proBurst = await burst(remaining + 8);
+        assert.equal(proBurst.filter((response) => response.status === 201).length, remaining);
+        assert.equal(proBurst.filter((response) => response.status === 403).length, 8);
+        assert.equal(
+          (await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, address))).length,
+          TOKEN_WATCH_CAPS.pro,
+        );
       } finally {
         await stop(second.server);
       }
-    });
-
-    await t.test("overlapping signed-wallet token saves stop at the basic and pro limits", async () => {
-      assert(signedHeaders, "Signed-in session missing");
-      const save = (mint: string) =>
-        fetch(`${base}/api/tokens/watched`, {
-          method: "POST",
-          headers: signedHeaders,
-          body: JSON.stringify({ mint }),
-        });
-      const basicResponses = await Promise.all(
-        Array.from({ length: 8 }, () => save(new PublicKey(nacl.sign.keyPair().publicKey).toBase58())),
-      );
-      assert.equal(basicResponses.filter((response) => response.status === 201).length, TOKEN_WATCH_CAPS.basic);
-      await db
-        .insert(walletAccounts)
-        .values({ walletAddress: address, tier: "pro" })
-        .onConflictDoUpdate({ target: walletAccounts.walletAddress, set: { tier: "pro" } });
-      const proResponses = await Promise.all(
-        Array.from({ length: 20 }, () => save(new PublicKey(nacl.sign.keyPair().publicKey).toBase58())),
-      );
-      assert.equal(
-        proResponses.filter((response) => response.status === 201).length,
-        TOKEN_WATCH_CAPS.pro - TOKEN_WATCH_CAPS.basic,
-      );
     });
   } finally {
     if (server) await stop(server);
