@@ -92,7 +92,7 @@ class BrowserPage {
   close() { this.ws.close(); }
 }
 
-test("guest navigation, token cap, and free signed-wallet access", { timeout: 120000 }, async (t) => {
+test("guest navigation, token cap, and free signed-wallet access", { timeout: 180000 }, async (t) => {
   const guestId = crypto.randomBytes(16).toString("hex");
   const owner = `guest:${guestId}`;
   const concurrentGuestId = crypto.randomBytes(16).toString("hex");
@@ -424,19 +424,57 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert.deepEqual(await db.select().from(watchedWallets).where(eq(watchedWallets.ownerPubkey, address)), []);
     });
 
-    await t.test("overlapping watched-wallet saves cannot exceed five", async () => {
+    await t.test("overlapping watched-wallet saves across two servers cannot exceed five", async () => {
       assert(signedHeaders, "Signed-in session missing");
-      const targets = Array.from({ length: 12 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58());
-      const responses = await Promise.all(targets.map((pubkey) => fetch(`${base}/api/wallets`, {
-        method: "POST", headers: signedHeaders, body: JSON.stringify({ pubkey }),
-      })));
-      assert.equal(responses.filter((response) => response.status === 201).length, 5,
-        await Promise.all(responses.map((response) => response.clone().text())));
-      assert.equal(responses.filter((response) => response.status === 403).length, 7);
-      const persisted = await db.select().from(watchedWallets).where(eq(watchedWallets.ownerPubkey, address));
-      assert.equal(persisted.length, 5);
-      assert.deepEqual(new Set(persisted.map((wallet) => wallet.pubkey)),
-        new Set(targets.filter((_, index) => responses[index].status === 201)));
+      const secondPort = await unusedPort();
+      const secondBase = `http://127.0.0.1:${secondPort}`;
+      const secondLog: string[] = [];
+      const secondServer = spawn("node", ["--import", "tsx", "server/index.ts"], {
+        env: { ...process.env, NODE_ENV: "development", PORT: String(secondPort), ENABLE_WATCHLIST_MONITOR: "0" },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      secondServer.stdout?.on("data", (chunk) => secondLog.push(String(chunk)));
+      secondServer.stderr?.on("data", (chunk) => secondLog.push(String(chunk)));
+      try {
+        await waitFor(async () => {
+          if (secondServer.exitCode !== null) throw new Error(`Second app exited: ${secondLog.join("")}`);
+          const response = await fetch(`${secondBase}/api/health/data-sources`);
+          return response.ok ? true : undefined;
+        }, "second app startup", 45000);
+
+        // Sessions and challenges live in each server's memory, so authenticate independently.
+        const challengeResponse = await fetch(`${secondBase}/api/auth/challenge`, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ address }),
+        });
+        assert.equal(challengeResponse.status, 200, await challengeResponse.clone().text());
+        const challenge = await challengeResponse.json();
+        const signature = bs58.encode(nacl.sign.detached(new TextEncoder().encode(challenge.message), signer.secretKey));
+        const verifyResponse = await fetch(`${secondBase}/api/auth/verify`, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ address, nonce: challenge.nonce, message: challenge.message, signature }),
+        });
+        assert.equal(verifyResponse.status, 200, await verifyResponse.clone().text());
+        const secondCookie = verifyResponse.headers.get("set-cookie")?.split(";")[0];
+        assert(secondCookie?.startsWith("wb.sid="), "Second server session cookie missing");
+        const secondHeaders = { cookie: secondCookie, "content-type": "application/json" };
+
+        const targets = Array.from({ length: 12 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58());
+        const responses = await Promise.all(targets.map((pubkey, index) =>
+          fetch(`${index % 2 === 0 ? base : secondBase}/api/wallets`, {
+            method: "POST", headers: index % 2 === 0 ? signedHeaders : secondHeaders,
+            body: JSON.stringify({ pubkey }),
+          })));
+        const statuses = responses.map((response) => response.status);
+        assert.equal(statuses.filter((status) => status === 201).length, 5, statuses);
+        assert.equal(statuses.filter((status) => status === 403).length, 7, statuses);
+        const persisted = await db.select().from(watchedWallets).where(eq(watchedWallets.ownerPubkey, address));
+        assert.equal(persisted.length, 5);
+        assert.deepEqual(new Set(persisted.map((wallet) => wallet.pubkey)),
+          new Set(targets.filter((_, index) => statuses[index] === 201)));
+      } finally {
+        await stop(secondServer);
+      }
     });
 
     await t.test("overlapping signed-wallet saves stop at the basic and pro limits", async () => {
@@ -459,10 +497,20 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
         .onConflictDoUpdate({ target: walletAccounts.walletAddress, set: { tier: "pro" } });
       const proResponses = await burst(20);
       assert.equal(proResponses.filter((response) => response.status === 201).length, TOKEN_WATCH_CAPS.pro - TOKEN_WATCH_CAPS.basic);
-      await db.insert(walletAccounts).values({ walletAddress: address, tier: "pro+" })
-        .onConflictDoUpdate({ target: walletAccounts.walletAddress, set: { tier: "pro+" } });
+      assert.equal(proResponses.filter((response) => response.status === 403).length, 20 - (TOKEN_WATCH_CAPS.pro - TOKEN_WATCH_CAPS.basic));
+      assert.equal(
+        (await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, address))).length,
+        TOKEN_WATCH_CAPS.pro,
+      );
 
       const highestCap = 50;
+      await db.insert(walletAccounts).values({ walletAddress: address, tier: "pro+" })
+        .onConflictDoUpdate({ target: walletAccounts.walletAddress, set: { tier: "pro+" } });
+      const proPlusListing = await fetch(`${base}/api/tokens/watched`, { headers: signedHeaders });
+      assert.equal(proPlusListing.status, 200);
+      const proPlusData = await proPlusListing.json();
+      assert.equal(proPlusData.tier, "pro+");
+      assert.equal(proPlusData.cap, highestCap);
       const proPlusResponses = await burst(highestCap - TOKEN_WATCH_CAPS.pro + 5);
       const rejectedProPlus = proPlusResponses.filter((response) => response.status === 403);
       assert.equal(rejectedProPlus.length, 5);
