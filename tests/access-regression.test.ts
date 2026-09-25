@@ -130,10 +130,7 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
     server.stderr?.on("data", (chunk) => log.push(String(chunk)));
     await waitFor(async () => {
       if (server?.exitCode !== null) throw new Error(`App exited: ${log.join("")}`);
-        const response = await fetch(`${base}/api/tokens/watched-guest`, {
-          method: "POST", headers: { ...guestHeaders, "content-type": "application/json" },
-          body: JSON.stringify({ mint }),
-        });
+      const response = await fetch(`${base}/api/health/data-sources`);
       return response.ok ? true : undefined;
     }, "app startup", 45000);
 
@@ -232,7 +229,8 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert.equal(rejected.status, 409);
       assert.equal((await rejected.json()).cap, 2);
       const listing = await fetch(`${base}/api/tokens/watched-guest`, { headers: guestHeaders });
-      const data = await first.json();
+      assert.equal(listing.status, 200);
+      const data = await listing.json();
       assert.equal(data.count, 2);
       assert.equal(data.mergeTrimmed, false);
       assert.deepEqual(new Set(data.tokens.map((token: { mint: string }) => token.mint)), new Set(mints.slice(0, 2)));
@@ -247,7 +245,7 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
         { ownerPubkey: legacyOwner, mint: olderMint, addedAt: new Date("2024-02-01T00:00:00Z") },
         { ownerPubkey: legacyOwner, mint: newerMint, addedAt: new Date("2024-03-01T00:00:00Z") },
       ]);
-      const headers = { cookie: sessionCookie, "content-type": "application/json" };
+      const headers = { "x-wb-vid": mergedGuestId, cookie: `wb.vid=${legacyGuestId}` };
       const first = await fetch(`${base}/api/tokens/watched-guest`, { headers });
       assert.equal(first.status, 200, await first.clone().text());
       const data = await first.json();
@@ -335,14 +333,12 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
     });
 
     await t.test("simultaneous guest saves and replacements respect the two-token cap", async () => {
-      const headers = { cookie: sessionCookie, "content-type": "application/json" };
+      const headers = { "x-wb-vid": concurrentGuestId, "content-type": "application/json" };
       const burstMints = Array.from({ length: 8 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58());
-      const save = (mint: string) => fetch(`${base}/api/tokens/watched`, {
-        method: "POST", headers: signedHeaders, body: JSON.stringify({ mint }),
+      const save = (mint: string, replaceMint?: string) => fetch(`${base}/api/tokens/watched-guest`, {
+        method: "POST", headers, body: JSON.stringify({ mint, replaceMint }),
       });
-      const responses = await Promise.all(targets.map((pubkey) => fetch(`${base}/api/wallets`, {
-        method: "POST", headers: signedHeaders, body: JSON.stringify({ pubkey }),
-      })));
+      const responses = await Promise.all(burstMints.map((mint) => save(mint)));
       assert.equal(responses.filter((response) => response.status === 201).length, 2);
       assert.equal(responses.filter((response) => response.status === 409).length, 6);
       const firstRows = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
@@ -354,6 +350,29 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert.equal(replacements.filter((response) => response.status === 409).length, 2);
       const finalRows = await db.select().from(watchedTokens).where(eq(watchedTokens.ownerPubkey, concurrentOwner));
       assert.equal(finalRows.length, 2);
+    });
+
+    await t.test("unsigned requests cannot use any watched-wallet endpoint", async () => {
+      const paths = [
+        ["GET", "/api/wallets"],
+        ["GET", `/api/wallets?owner=${address}`],
+        ["POST", "/api/wallets"],
+        ["POST", "/api/wallets/scan"],
+        ["GET", "/api/wallets/missing"],
+        ["POST", "/api/wallets/missing/scan"],
+        ["DELETE", "/api/wallets/missing"],
+        ["GET", "/api/wallets/missing/tokens"],
+        ["GET", "/api/wallets/missing/holdings"],
+        ["GET", "/api/wallets/missing/alerts"],
+      ] as const;
+      for (const [method, path] of paths) {
+        const response = await fetch(`${base}${path}`, {
+          method,
+          headers: { "content-type": "application/json" },
+          ...(method === "POST" ? { body: JSON.stringify({ ownerPubkey: address, pubkey: watchedAddress }) } : {}),
+        });
+        assert.equal(response.status, 401, `${method} ${path}: ${await response.text()}`);
+      }
     });
 
     await t.test("unsigned guest cannot add a watched wallet; free signed-in wallet can add and remove one", async () => {
@@ -393,6 +412,12 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       const list = await fetch(`${base}/api/wallets`, { headers });
       assert.equal(list.status, 200);
       assert((await list.json()).wallets.some((item: { id: string }) => item.id === wallet.id));
+      for (const path of ["", "/tokens", "/holdings", "/alerts"]) {
+        const response = await fetch(`${base}/api/wallets/${wallet.id}${path}`);
+        assert.equal(response.status, 401, `GET ${path || "wallet"}: ${await response.text()}`);
+      }
+      const unsignedDelete = await fetch(`${base}/api/wallets/${wallet.id}`, { method: "DELETE" });
+      assert.equal(unsignedDelete.status, 401);
       const removed = await fetch(`${base}/api/wallets/${wallet.id}`, { method: "DELETE", headers });
       assert.equal(removed.status, 200);
       assert.equal((await removed.json()).removed, true);
@@ -433,8 +458,13 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       await db.insert(walletAccounts).values({ walletAddress: address, tier: "pro" })
         .onConflictDoUpdate({ target: walletAccounts.walletAddress, set: { tier: "pro" } });
       const proResponses = await burst(20);
+      assert.equal(proResponses.filter((response) => response.status === 201).length, TOKEN_WATCH_CAPS.pro - TOKEN_WATCH_CAPS.basic);
+      await db.insert(walletAccounts).values({ walletAddress: address, tier: "pro+" })
+        .onConflictDoUpdate({ target: walletAccounts.walletAddress, set: { tier: "pro+" } });
 
       const highestCap = 50;
+      const proPlusResponses = await burst(highestCap - TOKEN_WATCH_CAPS.pro + 5);
+      const rejectedProPlus = proPlusResponses.filter((response) => response.status === 403);
       assert.equal(rejectedProPlus.length, 5);
       for (const response of rejectedProPlus) assert.equal((await response.json()).cap, highestCap);
       assert.equal(
@@ -461,11 +491,3 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
     await pool.end();
   }
 });
-
-      const proPlusData = await proPlusListing.json();
-
-      const proPlusResponses = await burst(highestCap - TOKEN_WATCH_CAPS.pro + 5);
-
-      const rejectedProPlus = proPlusResponses.filter((response) => response.status === 403);
-
-      const proPlusListing = await fetch(`${base}/api/tokens/watched`, { headers: signedHeaders });
