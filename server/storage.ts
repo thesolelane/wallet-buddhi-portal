@@ -25,7 +25,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, and, isNull, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -59,7 +59,7 @@ export interface IStorage {
   listWatchedWallets(ownerPubkey?: string): Promise<WatchedWallet[]>;
   getWatchedWallet(id: string): Promise<WatchedWallet | undefined>;
   getWatchedWalletByPubkey(ownerPubkey: string, pubkey: string): Promise<WatchedWallet | undefined>;
-  createWatchedWallet(data: InsertWatchedWallet): Promise<WatchedWallet>;
+  createWatchedWalletWithinLimit(data: InsertWatchedWallet, limit: number): Promise<WatchedWallet | undefined>;
   deleteWatchedWallet(id: string): Promise<boolean>;
 
   listTokens(watchedWalletId: string): Promise<PurchasedToken[]>;
@@ -189,8 +189,13 @@ export class MemStorage implements IStorage {
       (w) => w.ownerPubkey === ownerPubkey && w.pubkey === pubkey,
     );
   }
-  async createWatchedWallet(data: InsertWatchedWallet) {
-    const existing = await this.getWatchedWalletByPubkey(data.ownerPubkey, data.pubkey);
+  async createWatchedWalletWithinLimit(data: InsertWatchedWallet, limit: number) {
+    // No await between counting and inserting: keep the in-memory operation atomic.
+    const owned = Array.from(this.watchedWalletsMap.values()).filter(
+      (wallet) => wallet.ownerPubkey === data.ownerPubkey,
+    );
+    if (owned.length >= limit) return undefined;
+    const existing = owned.find((wallet) => wallet.pubkey === data.pubkey);
     if (existing) return existing;
     const id = randomUUID();
     const wallet: WatchedWallet = {
@@ -414,18 +419,30 @@ export class DbStorage implements IStorage {
       .limit(1);
     return rows[0];
   }
-  async createWatchedWallet(data: InsertWatchedWallet) {
-    const existing = await this.getWatchedWalletByPubkey(data.ownerPubkey, data.pubkey);
-    if (existing) return existing;
-    const rows = await db
-      .insert(watchedWallets)
-      .values({
-        ownerPubkey: data.ownerPubkey,
-        pubkey: data.pubkey,
-        label: data.label ?? null,
-      })
-      .returning();
-    return rows[0];
+  async createWatchedWalletWithinLimit(data: InsertWatchedWallet, limit: number) {
+    return db.transaction(async (tx) => {
+      // Lock the owner rather than existing rows, since a new owner has none.
+      // A transaction lock serializes additions across server instances too.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"watched-wallet:" + data.ownerPubkey}, 0))`);
+      const owned = await tx.select().from(watchedWallets)
+        .where(eq(watchedWallets.ownerPubkey, data.ownerPubkey));
+      if (owned.length >= limit) return undefined;
+      const existing = owned.find((wallet) => wallet.pubkey === data.pubkey);
+      if (existing) return existing;
+      const rows = await tx.insert(watchedWallets)
+        .values({
+          ownerPubkey: data.ownerPubkey,
+          pubkey: data.pubkey,
+          label: data.label ?? null,
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (rows[0]) return rows[0];
+      const duplicate = await tx.select().from(watchedWallets)
+        .where(and(eq(watchedWallets.ownerPubkey, data.ownerPubkey), eq(watchedWallets.pubkey, data.pubkey)))
+        .limit(1);
+      return duplicate[0];
+    });
   }
   async deleteWatchedWallet(id: string) {
     const rows = await db

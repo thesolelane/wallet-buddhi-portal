@@ -311,6 +311,21 @@ test("guest navigation, token cap, and free signed-wallet access", { timeout: 12
       assert.deepEqual(await db.select().from(watchedWallets).where(eq(watchedWallets.ownerPubkey, address)), []);
     });
 
+    await t.test("overlapping watched-wallet saves cannot exceed five", async () => {
+      assert(signedHeaders, "Signed-in session missing");
+      const targets = Array.from({ length: 12 }, () => new PublicKey(nacl.sign.keyPair().publicKey).toBase58());
+      const responses = await Promise.all(targets.map((pubkey) => fetch(`${base}/api/wallets`, {
+        method: "POST", headers: signedHeaders, body: JSON.stringify({ pubkey }),
+      })));
+      assert.equal(responses.filter((response) => response.status === 201).length, 5,
+        await Promise.all(responses.map((response) => response.clone().text())));
+      assert.equal(responses.filter((response) => response.status === 403).length, 7);
+      const persisted = await db.select().from(watchedWallets).where(eq(watchedWallets.ownerPubkey, address));
+      assert.equal(persisted.length, 5);
+      assert.deepEqual(new Set(persisted.map((wallet) => wallet.pubkey)),
+        new Set(targets.filter((_, index) => responses[index].status === 201)));
+    });
+
     await t.test("overlapping signed-wallet saves stop at the basic and pro limits", async () => {
       assert(signedHeaders, "Signed-in session missing");
       const save = (mint: string) => fetch(`${base}/api/tokens/watched`, {

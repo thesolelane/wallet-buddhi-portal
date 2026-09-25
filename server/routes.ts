@@ -601,18 +601,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = addWatchedWalletSchema.parse(req.body);
 
-      const existing = await storage.listWatchedWallets(data.ownerPubkey);
-      if (existing.length >= 5) {
+      const wallet = await storage.createWatchedWalletWithinLimit({
+        ownerPubkey: data.ownerPubkey,
+        pubkey: data.pubkey,
+        label: data.label,
+      }, 5);
+      if (!wallet) {
         return res.status(403).json({
           error: "Watch limit reached (5). Upgrade for more capacity.",
         });
       }
-
-      const wallet = await storage.createWatchedWallet({
-        ownerPubkey: data.ownerPubkey,
-        pubkey: data.pubkey,
-        label: data.label,
-      });
       return res.status(201).json(wallet);
     } catch (error) {
       if (error instanceof z.ZodError) {

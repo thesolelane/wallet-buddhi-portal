@@ -130,17 +130,16 @@ export function registerWatchlistRoutes(app: Express) {
     try {
       const data = addWatchedWalletSchema.parse(req.body);
       const owner = sessionWallet(req)!;
-      const existing = await storage.listWatchedWallets(owner);
-      if (existing.length >= 5) {
+      const wallet = await storage.createWatchedWalletWithinLimit({
+        ownerPubkey: owner,
+        pubkey: data.pubkey,
+        label: data.label,
+      }, 5);
+      if (!wallet) {
         return res.status(403).json({
           error: "Watch limit reached (5). Upgrade for more capacity.",
         });
       }
-      const wallet = await storage.createWatchedWallet({
-        ownerPubkey: owner,
-        pubkey: data.pubkey,
-        label: data.label,
-      });
       return res.status(201).json(wallet);
     } catch (error) {
       if (error instanceof z.ZodError) {
