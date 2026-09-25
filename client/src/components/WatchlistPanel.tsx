@@ -9,7 +9,7 @@ import { useWallet } from "@/lib/wallet-context-new";
 import { useToast } from "@/hooks/use-toast";
 import { ensureSiwsSession } from "@/lib/siws-session";
 import { apiRequest } from "@/lib/queryClient";
-import { Eye, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Eye, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
@@ -17,6 +17,16 @@ function shorten(addr: string) {
   if (!addr || addr.length < 12) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
+
+type Swap = {
+  signature: string;
+  timestamp: number;
+  direction: "buy" | "sell" | "unknown";
+  tokenMint: string;
+  tokenAmount: number;
+  quoteSymbol: string;
+  quoteAmount: number;
+};
 
 export function WatchlistPanel() {
   const { connected, address, openConnectModal } = useWallet();
@@ -34,6 +44,8 @@ export function WatchlistPanel() {
   const [holdings, setHoldings] = useState<any[]>([]);
   const [holdingsNote, setHoldingsNote] = useState("");
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [swaps, setSwaps] = useState<Swap[]>([]);
+  const [trafficNote, setTrafficNote] = useState("");
 
   useEffect(() => {
     fetch("/api/health/data-sources")
@@ -73,6 +85,7 @@ export function WatchlistPanel() {
 
   async function loadWallet(id: string) {
     setSelectedId(id);
+    const watched = wallets.find((w) => w.id === id);
     await withSession(async () => {
       const [tokenRes, alertRes, holdRes] = await Promise.all([
         apiRequest("GET", `/api/wallets/${id}/tokens`),
@@ -86,6 +99,22 @@ export function WatchlistPanel() {
       setAlerts(alertData.alerts || []);
       setHoldings(holdData.holdings || []);
       setHoldingsNote(holdData.ok ? "" : holdData.reason || "Could not load holdings");
+
+      const target = watched?.pubkey;
+      if (!target) {
+        setSwaps([]);
+        setTrafficNote("");
+        return;
+      }
+      const actRes = await fetch(`/api/wallet/${target}/activity?limit=40`);
+      const act = await actRes.json();
+      if (!act.ok) {
+        setSwaps([]);
+        setTrafficNote(act.reason || "Could not load traffic");
+      } else {
+        setSwaps(act.swaps || []);
+        setTrafficNote("");
+      }
     });
   }
 
@@ -116,6 +145,8 @@ export function WatchlistPanel() {
         setAlerts([]);
         setHoldings([]);
         setHoldingsNote("");
+        setSwaps([]);
+        setTrafficNote("");
       }
       const res = await apiRequest("GET", "/api/wallets");
       const data = await res.json();
@@ -164,6 +195,8 @@ export function WatchlistPanel() {
     setAlerts([]);
     setHoldings([]);
     setHoldingsNote("");
+    setSwaps([]);
+    setTrafficNote("");
 
     if (connected && address) {
       void (async () => {
@@ -177,7 +210,7 @@ export function WatchlistPanel() {
             setReady(true);
           }
         } catch {
-          // The user can sign in when they next use the watchlist.
+          // sign in on next action
         }
       })();
     }
@@ -185,6 +218,9 @@ export function WatchlistPanel() {
       active = false;
     };
   }, [connected, address]);
+
+  const inbound = swaps.filter((s) => s.direction === "buy");
+  const outbound = swaps.filter((s) => s.direction === "sell");
 
   if (!connected) {
     return (
@@ -220,7 +256,7 @@ export function WatchlistPanel() {
         <CardContent className="space-y-4">
           {helius === false && (
             <div className="text-sm rounded-md border border-border bg-muted/40 p-3">
-              You can add and list wallets now. Holdings and Scan need a Helius key.
+              You can add and list wallets now. Holdings, traffic, and Scan need a Helius key.
             </div>
           )}
           {!ready && (
@@ -229,26 +265,15 @@ export function WatchlistPanel() {
             </p>
           )}
           <div className="flex flex-col sm:flex-row gap-2">
-            <Input
-              placeholder="Wallet address to watch"
-              value={pubkey}
-              onChange={(e) => setPubkey(e.target.value)}
-            />
-            <Input
-              placeholder="Label (optional)"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              className="sm:max-w-[160px]"
-            />
+            <Input placeholder="Wallet address to watch" value={pubkey} onChange={(e) => setPubkey(e.target.value)} />
+            <Input placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} className="sm:max-w-[160px]" />
             <Button onClick={addWallet} disabled={busy}>
               <Plus className="h-4 w-4 mr-1" />
               Add
             </Button>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={refreshList} disabled={busy}>
-              Refresh
-            </Button>
+            <Button variant="outline" onClick={refreshList} disabled={busy}>Refresh</Button>
             <Button variant="outline" onClick={() => scan()} disabled={busy}>
               <RefreshCw className="h-4 w-4 mr-1" />
               Scan all
@@ -271,9 +296,7 @@ export function WatchlistPanel() {
                     {shorten(w.pubkey)}
                     {w.label ? <span className="ml-2 text-xs text-muted-foreground">{w.label}</span> : null}
                   </button>
-                  <Button size="sm" variant="ghost" onClick={() => scan(w.id)} disabled={busy}>
-                    Scan
-                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => scan(w.id)} disabled={busy}>Scan</Button>
                   <Button size="icon" variant="ghost" onClick={() => removeWallet(w.id)} disabled={busy}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -286,13 +309,59 @@ export function WatchlistPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Tokens and alerts</CardTitle>
+          <CardTitle>Holdings, traffic, alerts</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {!selectedId ? (
-            <p className="text-sm text-muted-foreground">Select a watched wallet to see holdings and alerts.</p>
+            <p className="text-sm text-muted-foreground">Select a watched wallet to see holdings and recent in/out traffic.</p>
           ) : (
             <>
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Recent traffic</h3>
+                {trafficNote ? (
+                  <p className="text-sm text-muted-foreground">{trafficNote}</p>
+                ) : swaps.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No recent swaps in the scanned window.</p>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      In {inbound.length} · Out {outbound.length} · last {swaps.length} swaps
+                    </p>
+                    <div className="space-y-1 max-h-56 overflow-y-auto">
+                      {swaps.slice(0, 20).map((s) => (
+                        <button
+                          key={s.signature}
+                          className="w-full text-left p-2 rounded-md border text-xs font-mono flex items-center gap-2"
+                          onClick={() => navigate(`/token/${s.tokenMint}`)}
+                        >
+                          {s.direction === "buy" ? (
+                            <ArrowDownRight className="h-3 w-3 text-green-500 shrink-0" />
+                          ) : s.direction === "sell" ? (
+                            <ArrowUpRight className="h-3 w-3 text-red-500 shrink-0" />
+                          ) : null}
+                          <span className={s.direction === "buy" ? "text-green-500" : s.direction === "sell" ? "text-red-500" : ""}>
+                            {s.direction === "buy" ? "IN" : s.direction === "sell" ? "OUT" : "?"}
+                          </span>
+                          <span className="truncate">{shorten(s.tokenMint)}</span>
+                          <span className="ml-auto text-muted-foreground">
+                            {s.quoteAmount ? `${s.quoteAmount.toFixed(3)} ${s.quoteSymbol}` : ""}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {wallets.find((w) => w.id === selectedId)?.pubkey && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2"
+                        onClick={() => navigate(`/wallet/${wallets.find((w) => w.id === selectedId)?.pubkey}`)}
+                      >
+                        Full wallet activity
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
               <div>
                 <h3 className="text-sm font-semibold mb-2">In this wallet</h3>
                 {holdingsNote ? (
@@ -347,15 +416,8 @@ export function WatchlistPanel() {
                           <Badge variant={a.verdict === "DANGER" ? "destructive" : "secondary"}>{a.verdict}</Badge>
                           <span className="text-sm">{a.newSymbol || a.newName || shorten(a.newMint)}</span>
                         </div>
-                        {a.matchedSymbol || a.matchedName ? (
-                          <p className="text-xs text-muted-foreground">
-                            Looks like {a.matchedSymbol || a.matchedName}
-                          </p>
-                        ) : null}
                         {!a.dismissedAt ? (
-                          <Button size="sm" variant="outline" onClick={() => dismiss(a.id)}>
-                            Dismiss
-                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => dismiss(a.id)}>Dismiss</Button>
                         ) : (
                           <p className="text-xs text-muted-foreground">Dismissed</p>
                         )}
