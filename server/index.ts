@@ -7,7 +7,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startWatchlistMonitor } from "./watchlist-monitor";
 import { hydrateBadActorRegistry } from "./bad-actor-registry";
-import { hydrateLeaderboards } from "./leaderboard-store";
+import { hydrateLeaderboards, persistLeaderboards } from "./leaderboard-store";
 import { pool } from "./db";
 
 const app = express();
@@ -98,6 +98,9 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      setInterval(() => {
+        void persistLeaderboards().catch((error) => console.error("leaderboard persist", error));
+      }, 30000);
       if (process.env.ENABLE_WATCHLIST_MONITOR === "1") {
         const intervalMs = Number(process.env.WATCHLIST_MONITOR_MS || 60000);
         startWatchlistMonitor(Number.isFinite(intervalMs) ? intervalMs : 60000);
