@@ -18,15 +18,7 @@ import logoImage from "@assets/ChatGPT Image Oct 20, 2025, 01_13_52 PM (1)_17610
 
 export function Header() {
   const [location, navigate] = useLocation();
-  const { connected, tier, openConnectModal } = useWallet();
-
-  function goDashboard() {
-    if (!connected) {
-      openConnectModal();
-      return;
-    }
-    navigate("/dashboard");
-  }
+  const { connected, tier } = useWallet();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
@@ -60,8 +52,8 @@ export function Header() {
                 Watchlist
               </Button>
             )}
-            {location !== "/dashboard" && (
-              <Button variant="ghost" onClick={goDashboard} data-testid="link-dashboard">
+            {connected && location !== "/dashboard" && (
+              <Button variant="ghost" onClick={() => navigate("/dashboard")} data-testid="link-dashboard">
                 <LayoutDashboard className="h-4 w-4 mr-2" />
                 Dashboard
               </Button>

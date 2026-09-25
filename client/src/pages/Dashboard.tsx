@@ -64,10 +64,10 @@ export default function Dashboard() {
     );
   };
 
-  const paid = tier === "pro" || tier === "pro+" || tier === "pro_plus";
-  const availableBots = tier === "pro_plus" || tier === "pro+" ? bots : [];
+  const paid = tier === "pro" || tier === "pro_plus";
+  const availableBots = tier === "pro_plus" ? bots : [];
   const activeBots = availableBots.filter((bot) => bot.status === "active").length;
-  const maxBots = tier === "pro_plus" || tier === "pro+" ? 5 : 0;
+  const maxBots = tier === "pro_plus" ? 5 : 0;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -160,7 +160,7 @@ export default function Dashboard() {
 
             <ProtectedTokens />
 
-            {tier === "pro_plus" || tier === "pro+" ? (
+            {tier === "pro_plus" ? (
               <div>
                 <div className="flex items-center justify-between mb-6">
                   <div>

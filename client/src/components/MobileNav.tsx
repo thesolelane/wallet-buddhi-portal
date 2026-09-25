@@ -35,7 +35,7 @@ export function MobileNav({ connected }: MobileNavProps) {
   const mainNavItems = [
     { path: "/", label: "Home", icon: HomeIcon },
     { path: "/watchlist", label: "Watchlist", icon: Eye },
-    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    ...(connected ? [{ path: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] : []),
     { path: "/lab", label: "Lab", icon: FlaskConical },
     { path: "/leaderboards", label: "Leaderboards", icon: Trophy },
     { path: "/bad-actors", label: "Bad Actors", icon: AlertTriangle },
@@ -83,11 +83,6 @@ export function MobileNav({ connected }: MobileNavProps) {
                 variant={location === item.path ? "default" : "ghost"}
                 className="justify-start hover-elevate active-elevate-2"
                 onClick={() => {
-                  if (item.path === "/dashboard" && !connected) {
-                    setOpen(false);
-                    navigate("/");
-                    return;
-                  }
                   navigate(item.path);
                   setOpen(false);
                 }}
