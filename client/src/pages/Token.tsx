@@ -12,7 +12,7 @@ import { addToWatchlist, isWatched, removeFromWatchlist } from "@/lib/watchlist"
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
 import { TokenMarketStats } from "@/components/TokenMarketStats";
 import { WatchTokenButton } from "@/components/WatchTokenButton";
-import { FounderPackCard } from "@/components/FounderPackCard";
+import { AnalystStudio } from "@/components/AnalystStudio";
 
 type MatchKind =
   | "exactNormalizedName"
@@ -372,8 +372,8 @@ export default function Token() {
             </Card>
 
             {/* AI Analyst */}
-            <FounderPackCard ca={data.ca} />
-            <AnalystCard ca={data.ca} />
+            
+            <AnalystStudio ca={data.ca} />
 
             {/* State cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
