@@ -3,6 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Pack = {
   flags: string[];
+  riskScore: number;
+  riskLabel: string;
+  confidenceScore: number;
+  confidenceLabel: string;
+  present: string[];
+  missing: string[];
   authorities: { mintRenounced: boolean; freezeRenounced: boolean };
   holders: { top10Pct: number };
   liquidity: {
@@ -39,6 +45,12 @@ export function FounderPackCard({ ca }: { ca: string }) {
         {error && <p className="text-destructive">Could not load founder pack.</p>}
         {data && (
           <>
+            <p className="text-sm">
+              Risk {data.riskScore} {data.riskLabel} · Confidence {data.confidenceScore} {data.confidenceLabel}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Based on {data.present?.join(", ") || "known fields"}. Not scored: {data.missing?.join(", ") || "—"}.
+            </p>
             <p className="text-xs text-muted-foreground">
               Mint {data.authorities.mintRenounced ? "renounced" : "LIVE"} · Freeze{" "}
               {data.authorities.freezeRenounced ? "renounced" : "LIVE"} · Top10 {data.holders.top10Pct.toFixed(1)}%
@@ -48,7 +60,6 @@ export function FounderPackCard({ ca }: { ca: string }) {
             <p className="text-xs text-muted-foreground">
               Liq {money(data.liquidity.liquidityUsd)} · MC {money(data.liquidity.marketCapUsd)}
               {data.rugcheck.ok && data.rugcheck.score != null ? ` · RugCheck ${data.rugcheck.score}` : ""}
-              {data.rugcheck.riskLevel ? ` ${data.rugcheck.riskLevel}` : ""}
             </p>
             <ul className="list-disc pl-5 space-y-1">
               {data.flags.map((f) => (
