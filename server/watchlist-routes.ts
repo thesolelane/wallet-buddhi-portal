@@ -18,6 +18,7 @@ import { getWalletHoldings } from "./wallet-holdings";
 import { getRugCheckSummary } from "./rugcheck-service";
 import { getTokenQuotes } from "./token-quotes";
 import { listOllamaModels } from "./ollama-models";
+import { getFounderPack } from "./founder-pack";
 import { formatWatchLabel, parseDisplayLabel, parsePurpose } from "./wallet-purpose";
 
 const challengeSchema = z.object({ address: z.string().regex(SOLANA_ADDRESS_RE) });
@@ -86,6 +87,14 @@ export function registerWatchlistRoutes(app: Express) {
   });
   app.get("/api/analyst/models", async (_req, res) => {
     return res.json(await listOllamaModels());
+  });
+  app.get("/api/token/:ca/founder-pack", async (req, res) => {
+    try {
+      if (!SOLANA_ADDRESS_RE.test(req.params.ca)) return res.status(400).json({ error: "Invalid Solana address" });
+      return res.json(await getFounderPack(req.params.ca));
+    } catch (error) {
+      return res.status(500).json({ error: error instanceof Error ? error.message : "founder pack failed" });
+    }
   });
   app.get("/api/tokens/quotes", async (req, res) => {
     try {
