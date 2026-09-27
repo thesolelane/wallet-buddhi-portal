@@ -1,6 +1,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { storage } from "./storage";
+import { db } from "./db";
+import { watchedWallets } from "@shared/schema";
 import {
   SOLANA_ADDRESS_RE,
   createChallenge,
@@ -13,6 +16,7 @@ import { scanOwnerWatchlist, scanWatchedWallet } from "./watchlist-monitor";
 import { registerWatchedTokenRoutes } from "./watched-token-routes";
 import { getWalletHoldings } from "./wallet-holdings";
 import { getRugCheckSummary } from "./rugcheck-service";
+import { formatWatchLabel, parseDisplayLabel, parsePurpose } from "./wallet-purpose";
 
 const challengeSchema = z.object({
   address: z.string().regex(SOLANA_ADDRESS_RE),
@@ -28,6 +32,12 @@ const verifySchema = z.object({
 const addWatchedWalletSchema = z.object({
   pubkey: z.string().regex(SOLANA_ADDRESS_RE),
   label: z.string().max(64).optional(),
+  purpose: z.enum(["mine", "research"]).default("research"),
+});
+
+const patchWatchedWalletSchema = z.object({
+  label: z.string().max(64).optional(),
+  purpose: z.enum(["mine", "research"]).optional(),
 });
 
 async function assertOwnsWatch(req: Request, res: Response, watchId: string) {
@@ -57,6 +67,14 @@ function bindPaymentToSession(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function presentWallet(wallet: { label?: string | null } & Record<string, unknown>) {
+  return {
+    ...wallet,
+    purpose: parsePurpose(wallet.label),
+    displayLabel: parseDisplayLabel(wallet.label),
+  };
+}
+
 export function registerWatchlistRoutes(app: Express) {
   registerWatchedTokenRoutes(app);
 
@@ -72,7 +90,7 @@ export function registerWatchlistRoutes(app: Express) {
         return res.status(403).json({ error: "Payment does not belong to this wallet" });
       }
       next();
-    } catch (error) {
+    } catch {
       return res.status(500).json({ error: "Failed to authorize payment" });
     }
   });
@@ -104,8 +122,7 @@ export function registerWatchlistRoutes(app: Express) {
       if (!SOLANA_ADDRESS_RE.test(ca)) {
         return res.status(400).json({ error: "Invalid Solana address" });
       }
-      const result = await getRugCheckSummary(ca);
-      return res.json(result);
+      return res.json(await getRugCheckSummary(ca));
     } catch (error) {
       return res.status(500).json({
         error: error instanceof Error ? error.message : "RugCheck failed",
@@ -116,16 +133,13 @@ export function registerWatchlistRoutes(app: Express) {
   app.post("/api/auth/challenge", async (req, res) => {
     try {
       const { address } = challengeSchema.parse(req.body);
-      const domain = getAuthDomain(req);
-      const challenge = await createChallenge(address, domain);
-      return res.json(challenge);
+      return res.json(await createChallenge(address, getAuthDomain(req)));
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid request data" });
       }
       const message = error instanceof Error ? error.message : "Failed to create challenge";
-      const status = message.includes("Too many") ? 429 : 400;
-      return res.status(status).json({ error: message });
+      return res.status(message.includes("Too many") ? 429 : 400).json({ error: message });
     }
   });
 
@@ -133,9 +147,7 @@ export function registerWatchlistRoutes(app: Express) {
     try {
       const data = verifySchema.parse(req.body);
       const result = await verifyChallenge(data);
-      if (!result.ok) {
-        return res.status(401).json({ error: result.error });
-      }
+      if (!result.ok) return res.status(401).json({ error: result.error });
       req.session.walletAddress = data.address;
       req.session.authenticatedAt = Date.now();
       return res.json({ ok: true, address: data.address });
@@ -160,9 +172,8 @@ export function registerWatchlistRoutes(app: Express) {
 
   app.get("/api/wallets", requireWalletAuth, async (req, res) => {
     try {
-      const owner = sessionWallet(req)!;
-      const wallets = await storage.listWatchedWallets(owner);
-      return res.json({ wallets });
+      const wallets = await storage.listWatchedWallets(sessionWallet(req)!);
+      return res.json({ wallets: wallets.map(presentWallet) });
     } catch (error) {
       console.error("Error listing watched wallets:", error);
       return res.status(500).json({ error: "Failed to list wallets" });
@@ -176,14 +187,12 @@ export function registerWatchlistRoutes(app: Express) {
       const wallet = await storage.createWatchedWalletWithinLimit({
         ownerPubkey: owner,
         pubkey: data.pubkey,
-        label: data.label,
+        label: formatWatchLabel(data.purpose, data.label),
       }, 5);
       if (!wallet) {
-        return res.status(403).json({
-          error: "Watch limit reached (5). Upgrade for more capacity.",
-        });
+        return res.status(403).json({ error: "Watch limit reached (5). Upgrade for more capacity." });
       }
-      return res.status(201).json(wallet);
+      return res.status(201).json(presentWallet(wallet));
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid request data" });
@@ -193,11 +202,26 @@ export function registerWatchlistRoutes(app: Express) {
     }
   });
 
+  app.patch("/api/wallets/:id", requireWalletAuth, async (req, res) => {
+    try {
+      const wallet = await assertOwnsWatch(req, res, req.params.id);
+      if (!wallet) return;
+      const data = patchWatchedWalletSchema.parse(req.body);
+      const purpose = data.purpose ?? parsePurpose(wallet.label);
+      const label = formatWatchLabel(purpose, data.label ?? wallet.label);
+      const rows = await db.update(watchedWallets).set({ label }).where(eq(watchedWallets.id, wallet.id)).returning();
+      return res.json(presentWallet(rows[0] || wallet));
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request data" });
+      }
+      return res.status(500).json({ error: "Failed to update wallet" });
+    }
+  });
+
   app.post("/api/wallets/scan", requireWalletAuth, async (req, res) => {
     try {
-      const owner = sessionWallet(req)!;
-      const summary = await scanOwnerWatchlist(owner);
-      return res.json(summary);
+      return res.json(await scanOwnerWatchlist(sessionWallet(req)!));
     } catch (error) {
       console.error("Error scanning watchlist:", error);
       return res.status(500).json({ error: "Failed to scan watchlist" });
@@ -208,9 +232,8 @@ export function registerWatchlistRoutes(app: Express) {
     try {
       const wallet = await assertOwnsWatch(req, res, req.params.id);
       if (!wallet) return;
-      return res.json(wallet);
+      return res.json(presentWallet(wallet));
     } catch (error) {
-      console.error("Error fetching watched wallet:", error);
       return res.status(500).json({ error: "Failed to fetch wallet" });
     }
   });
@@ -219,10 +242,8 @@ export function registerWatchlistRoutes(app: Express) {
     try {
       const wallet = await assertOwnsWatch(req, res, req.params.id);
       if (!wallet) return;
-      const result = await scanWatchedWallet(wallet);
-      return res.json(result);
+      return res.json(await scanWatchedWallet(wallet));
     } catch (error) {
-      console.error("Error scanning wallet:", error);
       return res.status(500).json({ error: "Failed to scan wallet" });
     }
   });
@@ -231,10 +252,8 @@ export function registerWatchlistRoutes(app: Express) {
     try {
       const wallet = await assertOwnsWatch(req, res, req.params.id);
       if (!wallet) return;
-      const removed = await storage.deleteWatchedWallet(wallet.id);
-      return res.json({ removed });
+      return res.json({ removed: await storage.deleteWatchedWallet(wallet.id) });
     } catch (error) {
-      console.error("Error deleting watched wallet:", error);
       return res.status(500).json({ error: "Failed to delete wallet" });
     }
   });
@@ -243,10 +262,8 @@ export function registerWatchlistRoutes(app: Express) {
     try {
       const wallet = await assertOwnsWatch(req, res, req.params.id);
       if (!wallet) return;
-      const tokens = await storage.listTokens(wallet.id);
-      return res.json({ tokens });
-    } catch (error) {
-      console.error("Error listing tokens:", error);
+      return res.json({ tokens: await storage.listTokens(wallet.id) });
+    } catch {
       return res.status(500).json({ error: "Failed to list tokens" });
     }
   });
@@ -255,10 +272,8 @@ export function registerWatchlistRoutes(app: Express) {
     try {
       const wallet = await assertOwnsWatch(req, res, req.params.id);
       if (!wallet) return;
-      const result = await getWalletHoldings(wallet.pubkey);
-      return res.json(result);
-    } catch (error) {
-      console.error("Error listing holdings:", error);
+      return res.json(await getWalletHoldings(wallet.pubkey));
+    } catch {
       return res.status(500).json({ error: "Failed to list holdings" });
     }
   });
@@ -267,10 +282,8 @@ export function registerWatchlistRoutes(app: Express) {
     try {
       const wallet = await assertOwnsWatch(req, res, req.params.id);
       if (!wallet) return;
-      const alertsList = await storage.listAlerts(wallet.id);
-      return res.json({ alerts: alertsList });
-    } catch (error) {
-      console.error("Error listing alerts:", error);
+      return res.json({ alerts: await storage.listAlerts(wallet.id) });
+    } catch {
       return res.status(500).json({ error: "Failed to list alerts" });
     }
   });
@@ -285,10 +298,8 @@ export function registerWatchlistRoutes(app: Express) {
       if (!watch || watch.ownerPubkey !== owner) {
         return res.status(403).json({ error: "Forbidden" });
       }
-      const alert = await storage.dismissAlert(target.id);
-      return res.json(alert);
-    } catch (error) {
-      console.error("Error dismissing alert:", error);
+      return res.json(await storage.dismissAlert(target.id));
+    } catch {
       return res.status(500).json({ error: "Failed to dismiss alert" });
     }
   });
