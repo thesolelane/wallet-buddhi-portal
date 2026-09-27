@@ -12,6 +12,7 @@ import { addToWatchlist, isWatched, removeFromWatchlist } from "@/lib/watchlist"
 import { FaTwitter, FaTelegram, FaDiscord } from "react-icons/fa";
 import { TokenMarketStats } from "@/components/TokenMarketStats";
 import { WatchTokenButton } from "@/components/WatchTokenButton";
+import { FounderPackCard } from "@/components/FounderPackCard";
 
 type MatchKind =
   | "exactNormalizedName"
@@ -371,6 +372,7 @@ export default function Token() {
             </Card>
 
             {/* AI Analyst */}
+            <FounderPackCard ca={data.ca} />
             <AnalystCard ca={data.ca} />
 
             {/* State cards */}
