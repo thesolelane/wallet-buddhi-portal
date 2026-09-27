@@ -17,6 +17,7 @@ import { registerWatchedTokenRoutes } from "./watched-token-routes";
 import { getWalletHoldings } from "./wallet-holdings";
 import { getRugCheckSummary } from "./rugcheck-service";
 import { getTokenQuotes } from "./token-quotes";
+import { listOllamaModels } from "./ollama-models";
 import { formatWatchLabel, parseDisplayLabel, parsePurpose } from "./wallet-purpose";
 
 const challengeSchema = z.object({ address: z.string().regex(SOLANA_ADDRESS_RE) });
@@ -82,6 +83,9 @@ export function registerWatchlistRoutes(app: Express) {
   });
   app.get("/api/health/data-sources", (_req, res) => {
     return res.json({ helius: Boolean(process.env.HELIUS_API_KEY), dexscreener: true, rugcheck: true });
+  });
+  app.get("/api/analyst/models", async (_req, res) => {
+    return res.json(await listOllamaModels());
   });
   app.get("/api/tokens/quotes", async (req, res) => {
     try {
