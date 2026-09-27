@@ -18,6 +18,8 @@ function shorten(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
+type WalletPurpose = "mine" | "research";
+
 type Swap = {
   signature: string;
   timestamp: number;
@@ -38,6 +40,7 @@ export function WatchlistPanel() {
   const [helius, setHelius] = useState<boolean | null>(null);
   const [pubkey, setPubkey] = useState("");
   const [label, setLabel] = useState("");
+  const [purpose, setPurpose] = useState<WalletPurpose>("research");
   const [wallets, setWallets] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tokens, setTokens] = useState<any[]>([]);
@@ -92,22 +95,18 @@ export function WatchlistPanel() {
         apiRequest("GET", `/api/wallets/${id}/alerts`),
         apiRequest("GET", `/api/wallets/${id}/holdings`),
       ]);
-      const tokenData = await tokenRes.json();
-      const alertData = await alertRes.json();
+      setTokens((await tokenRes.json()).tokens || []);
+      setAlerts((await alertRes.json()).alerts || []);
       const holdData = await holdRes.json();
-      setTokens(tokenData.tokens || []);
-      setAlerts(alertData.alerts || []);
       setHoldings(holdData.holdings || []);
       setHoldingsNote(holdData.ok ? "" : holdData.reason || "Could not load holdings");
-
       const target = watched?.pubkey;
       if (!target) {
         setSwaps([]);
         setTrafficNote("");
         return;
       }
-      const actRes = await fetch(`/api/wallet/${target}/activity?limit=40`);
-      const act = await actRes.json();
+      const act = await (await fetch(`/api/wallet/${target}/activity?limit=40`)).json();
       if (!act.ok) {
         setSwaps([]);
         setTrafficNote(act.reason || "Could not load traffic");
@@ -127,12 +126,20 @@ export function WatchlistPanel() {
       await apiRequest("POST", "/api/wallets", {
         pubkey: pubkey.trim(),
         label: label.trim() || undefined,
+        purpose,
       });
       setPubkey("");
       setLabel("");
       const res = await apiRequest("GET", "/api/wallets");
-      const data = await res.json();
-      setWallets(data.wallets || []);
+      setWallets((await res.json()).wallets || []);
+    });
+  }
+
+  async function setWalletPurpose(id: string, next: WalletPurpose) {
+    await withSession(async () => {
+      await apiRequest("PATCH", `/api/wallets/${id}`, { purpose: next });
+      const res = await apiRequest("GET", "/api/wallets");
+      setWallets((await res.json()).wallets || []);
     });
   }
 
@@ -149,8 +156,7 @@ export function WatchlistPanel() {
         setTrafficNote("");
       }
       const res = await apiRequest("GET", "/api/wallets");
-      const data = await res.json();
-      setWallets(data.wallets || []);
+      setWallets((await res.json()).wallets || []);
     });
   }
 
@@ -158,16 +164,14 @@ export function WatchlistPanel() {
     if (helius === false) {
       toast({
         title: "Scan needs Helius",
-        description: "Add HELIUS_API_KEY in Replit Secrets, then restart. You can still add wallets.",
+        description: "Add HELIUS_API_KEY in Replit Secrets, then restart.",
       });
       return;
     }
     await withSession(async () => {
-      const path = id ? `/api/wallets/${id}/scan` : "/api/wallets/scan";
-      const res = await apiRequest("POST", path);
+      const res = await apiRequest("POST", id ? `/api/wallets/${id}/scan` : "/api/wallets/scan");
       const summary = await res.json();
-      const errors = summary.errors as string[] | undefined;
-      const missingKey = errors?.some((e) => String(e).includes("HELIUS_API_KEY"));
+      const missingKey = (summary.errors as string[] | undefined)?.some((e) => String(e).includes("HELIUS_API_KEY"));
       toast({
         title: missingKey ? "Scan needs Helius" : "Scan complete",
         description: missingKey
@@ -197,7 +201,6 @@ export function WatchlistPanel() {
     setHoldingsNote("");
     setSwaps([]);
     setTrafficNote("");
-
     if (connected && address) {
       void (async () => {
         try {
@@ -210,7 +213,7 @@ export function WatchlistPanel() {
             setReady(true);
           }
         } catch {
-          // sign in on next action
+          /* sign in next */
         }
       })();
     }
@@ -254,19 +257,20 @@ export function WatchlistPanel() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {helius === false && (
-            <div className="text-sm rounded-md border border-border bg-muted/40 p-3">
-              You can add and list wallets now. Holdings, traffic, and Scan need a Helius key.
-            </div>
-          )}
-          {!ready && (
-            <p className="text-sm text-muted-foreground">
-              Wallets are stored on the server. Click Refresh and approve the message once to load them.
-            </p>
-          )}
+          <div className="flex gap-2">
+            <Button size="sm" variant={purpose === "mine" ? "default" : "outline"} onClick={() => setPurpose("mine")}>
+              Mine
+            </Button>
+            <Button size="sm" variant={purpose === "research" ? "default" : "outline"} onClick={() => setPurpose("research")}>
+              Research
+            </Button>
+            <span className="text-xs text-muted-foreground self-center">
+              {purpose === "mine" ? "This is your wallet" : "Trader / creator you follow"}
+            </span>
+          </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <Input placeholder="Wallet address to watch" value={pubkey} onChange={(e) => setPubkey(e.target.value)} />
-            <Input placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} className="sm:max-w-[160px]" />
+            <Input placeholder="Nickname (optional)" value={label} onChange={(e) => setLabel(e.target.value)} className="sm:max-w-[160px]" />
             <Button onClick={addWallet} disabled={busy}>
               <Plus className="h-4 w-4 mr-1" />
               Add
@@ -285,23 +289,36 @@ export function WatchlistPanel() {
             </p>
           ) : (
             <div className="space-y-2">
-              {wallets.map((w) => (
-                <div
-                  key={w.id}
-                  className={`flex items-center gap-2 p-2 rounded-md border ${
-                    selectedId === w.id ? "border-primary" : "border-border"
-                  }`}
-                >
-                  <button className="flex-1 text-left font-mono text-sm" onClick={() => loadWallet(w.id)}>
-                    {shorten(w.pubkey)}
-                    {w.label ? <span className="ml-2 text-xs text-muted-foreground">{w.label}</span> : null}
-                  </button>
-                  <Button size="sm" variant="ghost" onClick={() => scan(w.id)} disabled={busy}>Scan</Button>
-                  <Button size="icon" variant="ghost" onClick={() => removeWallet(w.id)} disabled={busy}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+              {wallets.map((w) => {
+                const kind: WalletPurpose = w.purpose === "mine" ? "mine" : "research";
+                return (
+                  <div
+                    key={w.id}
+                    className={`flex items-center gap-2 p-2 rounded-md border ${
+                      selectedId === w.id ? "border-primary" : "border-border"
+                    }`}
+                  >
+                    <button className="flex-1 text-left font-mono text-sm" onClick={() => loadWallet(w.id)}>
+                      {shorten(w.pubkey)}
+                      {w.displayLabel ? (
+                        <span className="ml-2 text-xs text-muted-foreground">{w.displayLabel}</span>
+                      ) : null}
+                    </button>
+                    <Button
+                      size="sm"
+                      variant={kind === "mine" ? "default" : "outline"}
+                      onClick={() => setWalletPurpose(w.id, kind === "mine" ? "research" : "mine")}
+                      disabled={busy}
+                    >
+                      {kind === "mine" ? "Mine" : "Research"}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => scan(w.id)} disabled={busy}>Scan</Button>
+                    <Button size="icon" variant="ghost" onClick={() => removeWallet(w.id)} disabled={busy}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -339,26 +356,13 @@ export function WatchlistPanel() {
                           ) : s.direction === "sell" ? (
                             <ArrowUpRight className="h-3 w-3 text-red-500 shrink-0" />
                           ) : null}
-                          <span className={s.direction === "buy" ? "text-green-500" : s.direction === "sell" ? "text-red-500" : ""}>
+                          <span className={s.direction === "buy" ? "text-green-500" : "text-red-500"}>
                             {s.direction === "buy" ? "IN" : s.direction === "sell" ? "OUT" : "?"}
                           </span>
                           <span className="truncate">{shorten(s.tokenMint)}</span>
-                          <span className="ml-auto text-muted-foreground">
-                            {s.quoteAmount ? `${s.quoteAmount.toFixed(3)} ${s.quoteSymbol}` : ""}
-                          </span>
                         </button>
                       ))}
                     </div>
-                    {wallets.find((w) => w.id === selectedId)?.pubkey && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-2"
-                        onClick={() => navigate(`/wallet/${wallets.find((w) => w.id === selectedId)?.pubkey}`)}
-                      >
-                        Full wallet activity
-                      </Button>
-                    )}
                   </>
                 )}
               </div>
@@ -373,7 +377,7 @@ export function WatchlistPanel() {
                     {holdings.map((t) => (
                       <button
                         key={t.mint}
-                        className="w-full text-left p-2 rounded-md border hover:bg-muted/50"
+                        className="w-full text-left p-2 rounded-md border"
                         onClick={() => navigate(`/token/${t.mint}`)}
                       >
                         <div className="font-medium text-sm">{t.symbol || t.name || shorten(t.mint)}</div>
@@ -381,47 +385,6 @@ export function WatchlistPanel() {
                           {Number(t.amount).toLocaleString(undefined, { maximumFractionDigits: 4 })} · {shorten(t.mint)}
                         </div>
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold mb-2">New buys from Scan</h3>
-                {tokens.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No stored buys yet. Run a scan to record new purchases.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {tokens.slice(0, 12).map((t) => (
-                      <button
-                        key={t.id}
-                        className="w-full text-left p-2 rounded-md border hover:bg-muted/50"
-                        onClick={() => navigate(`/token/${t.mint}`)}
-                      >
-                        <div className="font-medium text-sm">{t.symbol || t.name || shorten(t.mint)}</div>
-                        <div className="text-xs text-muted-foreground font-mono">{shorten(t.mint)}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold mb-2">Alerts</h3>
-                {alerts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No copycat alerts for this wallet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {alerts.map((a) => (
-                      <div key={a.id} className="p-2 rounded-md border space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant={a.verdict === "DANGER" ? "destructive" : "secondary"}>{a.verdict}</Badge>
-                          <span className="text-sm">{a.newSymbol || a.newName || shorten(a.newMint)}</span>
-                        </div>
-                        {!a.dismissedAt ? (
-                          <Button size="sm" variant="outline" onClick={() => dismiss(a.id)}>Dismiss</Button>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">Dismissed</p>
-                        )}
-                      </div>
                     ))}
                   </div>
                 )}
