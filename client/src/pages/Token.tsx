@@ -373,7 +373,7 @@ export default function Token() {
 
             {/* AI Analyst */}
             
-            <AnalystStudio ca={data.ca} />
+            <AnalystStudio key={data.ca} ca={data.ca} />
 
             {/* State cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
